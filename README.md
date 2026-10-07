@@ -55,10 +55,10 @@ Agent 列表接口当前返回当前用户的完整数组，无分页。列表�
 - 所有 API 请求携带用户自己的长期 Token。后端从 Token 确定用户，不信任调用方指定的归属。跨用户资源统一返回 404。
 - 插件启动时核对连接的绑定信息，每次工具调用重新核对 Token 所属用户。撤销 Token 后，下次请求立即失败。
 - 连接只接受 HTTPS origin；本地调试允许 loopback HTTP。禁止 URL 内置凭证、查询参数及重定向，避免把 Token 发往其他地址。
-- 自动安装的凭证文件为 `~/.config/cuijiao-bridge/profiles/<namespace>.json`；手动 configure 的默认路径为 `~/.config/cuijiao-bridge/profile.json`，权限为 `600`。Token 只存在此文件和进程内存中，生成插件只保存凭证文件路径和绑定用户，不把 Token 写入清单、提示词或日志。
+- 自动安装的凭证文件为 `~/.config/cuijiao-bridge/profiles/<namespace>.json`；手动 configure 的默认路径为 `~/.config/cuijiao-bridge/profile.json`，权限为 `600`。App 复制的安装指令和目标 AI 会话中包含 Token；插件运行时从该文件读取。生成的插件只保存凭证文件路径和绑定用户，不把 Token 写入插件清单、Agent 提示词或日志。
 - 同一用户的多个 Token 可访问该用户全部业务资源，当前没有 Token 级别的细分 scope。操作系统账号及其启动的 harness 必须可信；本机文件权限不是对同一系统账号内恶意进程的隔离。
 
-更换同一用户的 Token 时重新 `configure`，然后重新开启 harness 会话。切换账号或平台须使用不同的 `--profile` 文件，并在后续命令中传入同一路径；不能静默覆盖已绑定其他账号的配置。
+更换同一用户的 Token 时重新 `configure`，然后重新开启 harness 会话。自动 install 按账号及平台选择独立配置；手动 configure 切换账号或平台时须使用不同的 `--profile` 文件，并在后续命令中传入同一路径，不能静默覆盖已绑定其他账号的配置。
 
 ## 本地文件与卸载
 
@@ -92,7 +92,7 @@ BRIDGE_TEST_ORIGIN=http://127.0.0.1:8081 node --test tests/platform-smoke.js
 
 `BRIDGE_TEST_PYTHON` 可指定安装测试使用的 Python 3.11+ 可执行文件。平台端应另外覆盖跨用户项目、素材、Agent 的读写隔离及 Token 撤销。当前配套 Go 后端已通过独立 MySQL 权限回归测试。
 
-2026-10-07 本地已通过：单元/MCP 测试、Claude Code 2.1.153 和 Codex CLI 0.160.0 的隔离安装与更新、真实 Go/MySQL 后端的同步与 MCP CRUD、两用户资源隔离和 Token 撤销。还未用真实用户 Token 安装到日常 harness，未验证模型在真实对话中的自动选择质量，尚未部署配套后端的新身份接口；请按目标平台实际接入状态使用。
+2026-10-07 本地已通过：9 项单元/MCP 测试、App 实际剪贴板 → install → 两个 Agent 与平台助手 → MCP 身份查询、Claude Code 2.1.153 和 Codex CLI 0.160.0 的隔离安装与更新、真实 Go/MySQL 后端的同步与 MCP CRUD、两用户资源隔离和 Token 撤销。还未用真实用户 Token 安装到日常 harness，未验证模型在真实对话中的自动选择质量，尚未部署配套后端的新身份接口；请按目标平台实际接入状态使用。
 
 格式依据：[Codex 插件](https://developers.openai.com/plugins/build/plugins)、[Codex 自定义 Agent](https://learn.chatgpt.com/docs/agent-configuration/subagents)、[Claude Code 插件](https://code.claude.com/docs/en/plugins-reference)、[MCP SDK](https://ts.sdk.modelcontextprotocol.io/v2/)。首版复用官方 MCP SDK，不自行实现协议。
 
