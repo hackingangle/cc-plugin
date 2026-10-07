@@ -61,15 +61,15 @@ export async function renderPlugin(profile, profilePath, agents) {
       `agents/${record.key}.md`,
       `---\nname: ${record.key}\ndescription: ${JSON.stringify(record.description)}\n---\n\n${record.prompt}\n`,
     );
+    files.set(
+      `skills/${record.key}/SKILL.md`,
+      `---\nname: ${record.key}\ndescription: ${JSON.stringify(record.description)}\n---\n\n${record.prompt}\n`,
+    );
   }
-  files.set(
-    "skills/platform/SKILL.md",
-    `---\nname: platform\ndescription: 管理萃角儿平台上当前用户的项目、文本素材和 Agent，执行查询、创建、修改和删除。\n---\n\n${platformInstructions}\n`,
-  );
   const syncCommand = `${quote(process.execPath)} ${quote(join(sourceRoot, "src", "cli.js"))} sync --profile ${quote(profilePath)}`;
   files.set(
     "skills/sync-agents/SKILL.md",
-    `---\nname: sync-agents\ndescription: 用户要求把萃角儿平台 Agent 同步安装到 Claude Code 或 Codex 时使用。\n---\n\n运行以下命令，并按用户指定的 harness 选择 cc、codex 或 all；未指定时使用 all。\n\n\`\`\`sh\n${syncCommand} --harness all\n\`\`\`\n\n只运行同步命令，不读取凭证文件。失败时报告错误，不能声称已安装。成功后提示开启新会话加载 Agent。\n`,
+    `---\nname: sync-agents\ndescription: 用户要求把萃角儿平台 Agent 同步安装到 Claude Code 或 Codex 时使用。\n---\n\n运行以下命令，并按用户指定的 harness 选择 cc、codex 或 all；未指定时根据当前工具选择 cc 或 codex，不要仅因本机存在其他 CLI 就安装到它们。其他 MCP 工具使用 --generate-only 更新导出，再更新自己的托管技能。\n\n\`\`\`sh\n${syncCommand} --harness <cc或codex>\n\`\`\`\n\n只运行同步命令，不读取凭证文件。失败时报告错误，不能声称已安装。成功后提示开启新会话加载 Agent。\n`,
   );
   files.set(".mcp.json", json({ mcpServers: { platform: mcp } }));
   // Include runtime changes in the version so both harness caches refresh.
