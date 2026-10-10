@@ -3,7 +3,32 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { configure } from "../src/profile.js";
+
+export function cli(args, input, env = process.env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [fileURLToPath(new URL("../src/cli.js", import.meta.url)), ...args],
+      {
+        env,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
+    let output = "",
+      error = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => (output += chunk));
+    child.stderr.on("data", (chunk) => (error += chunk));
+    child.on("error", reject);
+    child.on("close", (code) => resolve({ code, output, error }));
+    child.stdin.on("error", () => {});
+    child.stdin.end(input);
+  });
+}
 
 export async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), "cuijiao-bridge-"));
@@ -24,6 +49,7 @@ export async function fixture(t) {
   };
   const server = createServer(async (request, response) => {
     let raw = "";
+    request.setEncoding("utf8");
     for await (const chunk of request) raw += chunk;
     state.calls.push({
       method: request.method,

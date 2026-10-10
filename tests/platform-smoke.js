@@ -2,47 +2,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { configure } from "../src/profile.js";
 import { syncAgents } from "../src/sync.js";
+import { platformFixture } from "./platform-helpers.js";
 
 test("live platform: token identity → agent sync → MCP CRUD → cross-user denial → revocation", async (t) => {
-  const origin = process.env.BRIDGE_TEST_ORIGIN;
-  assert.ok(origin, "Set BRIDGE_TEST_ORIGIN to an isolated localhost backend");
-  assert.ok(
-    ["localhost", "127.0.0.1", "[::1]"].includes(new URL(origin).hostname),
-  );
-  const directory = await mkdtemp(join(tmpdir(), "cuijiao-live-"));
-  const password = randomUUID();
-  const sessions = [];
+  const { origin, directory, password, sessions, api } =
+    await platformFixture(t);
   const clients = [];
-  const api = async (method, path, token, body, expected) => {
-    const response = await fetch(origin + path, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(10000),
-      redirect: "error",
-    });
-    assert.equal(response.status, expected, `${method} ${path}`);
-    return response.status === 204 ? undefined : response.json();
-  };
   t.after(async () => {
     for (const client of clients) await client.close();
-    try {
-      for (const session of sessions)
-        await api("DELETE", "/api/auth/me", session.token, { password }, 204);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
   });
   for (const suffix of ["a", "b"]) {
     sessions.push(

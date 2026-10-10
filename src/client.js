@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-export class BridgeError extends Error {}
+export class BridgeError extends Error {
+  constructor(message, code = "bridge_error") {
+    super(message);
+    this.code = code;
+  }
+}
 
 export function normalizeOrigin(value) {
   let url;
@@ -74,6 +79,7 @@ export class PlatformClient {
     } catch {
       throw new BridgeError(
         "平台请求失败或超时；写入结果可能未知，请先查询，勿自动重试写入。",
+        "request_failed",
       );
     }
     if (!response.ok) {
@@ -89,13 +95,17 @@ export class PlatformClient {
       throw new BridgeError(
         messages[response.status] ??
           `平台返回 HTTP ${response.status}，请检查输入或服务状态。`,
+        `http_${response.status}`,
       );
     }
     if (response.status === 204) return { deleted: true };
     try {
       return await response.json();
     } catch {
-      throw new BridgeError("平台未返回有效 JSON；写入结果请先查询确认。");
+      throw new BridgeError(
+        "平台未返回有效 JSON；写入结果请先查询确认。",
+        "invalid_response",
+      );
     }
   }
 
@@ -107,6 +117,7 @@ export class PlatformClient {
     if (this.userId !== undefined && this.userId !== parsed.data.id) {
       throw new BridgeError(
         "Token 所属用户与插件绑定用户不同，请为该用户单独配置并同步。",
+        "account_mismatch",
       );
     }
     return parsed.data;

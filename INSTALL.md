@@ -35,7 +35,8 @@ CLI 会先验证 Token 所属用户，按平台和用户 ID 分别保存连接�
 
 1. 使用返回的 `profilePath` 运行 `node src/cli.js whoami --profile <profilePath>`，确认平台可达与用户身份，绝不打印凭证内容。
 2. 核对同步结果中的 Agent 数量，确认平台助手和所有 Agent 的文件已生成，并确认当前工具的插件 / MCP 列表已注册。
-3. 如果当前会话能重载 MCP，调用 `current_user`、`list_agents` 完成只读验证；不为验收擅自创建或删除用户资源。如果只能新会话加载，明确说明配置已完成、需要开启新会话，不能声称当前会话已连接。
+3. 运行 `node src/cli.js agents list --profile <profilePath>`，验证平台业务 CLI；命令清单与参数格式可通过 `node src/cli.js --help --json` 查看。
+4. 如果当前会话能重载 MCP，调用 `current_user`、`list_agents` 完成 MCP → CLI 的只读验证；不为验收擅自创建或删除用户资源。如果只能新会话加载，明确说明配置已完成、需要开启新会话，不能声称当前会话已连接。
 4. 告诉用户安装到了哪个工具、哪个平台账号、同步了多少 Agent，以及是否需要新会话。不要重复 Token。
 
 失败时报告具体阶段，不自动反复签发 Token，不通过更换账号绕过 401 / 404。Token 可由用户在 App「工具 → API 令牌」撤销。修改了平台 Agent 后，使用本次 `profilePath` 执行 `sync --harness cc|codex`；其他 MCP 工具执行 `sync --generate-only` 并更新其托管 Agent / 技能文件。完整维护说明见 [README](README.md)。

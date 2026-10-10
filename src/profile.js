@@ -29,7 +29,7 @@ export async function atomicWrite(path, contents) {
   }
 }
 
-export async function readProfile(path) {
+export async function readProfile(path, binding) {
   const stat = await lstat(path);
   if (!stat.isFile() || (process.platform !== "win32" && stat.mode & 0o077)) {
     throw new BridgeError(
@@ -46,6 +46,16 @@ export async function readProfile(path) {
     throw new BridgeError("凭证文件缺少绑定用户，请重新 configure。");
   }
   new PlatformClient(profile);
+  if (
+    binding &&
+    (String(profile.userId) !== binding.userId ||
+      profile.baseUrl !== binding.baseUrl)
+  ) {
+    throw new BridgeError(
+      "凭证与已安装插件绑定的用户或平台不匹配，请重新同步。",
+      "binding_mismatch",
+    );
+  }
   return profile;
 }
 

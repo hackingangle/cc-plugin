@@ -1,20 +1,21 @@
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { readProfile } from "./profile.js";
-import { BridgeError, PlatformClient } from "./client.js";
+import { BridgeError } from "./client.js";
 import { createServer } from "./tools.js";
 
 try {
-  const profile = await readProfile(process.env.CUIJIAO_PROFILE);
-  if (
-    String(profile.userId) !== process.env.CUIJIAO_USER_ID ||
-    profile.baseUrl !== process.env.CUIJIAO_ORIGIN
-  ) {
-    throw new BridgeError(
-      "凭证与已安装插件绑定的用户或平台不匹配，请重新同步。",
-    );
-  }
-  const client = new PlatformClient(profile);
-  await serveStdio(() => createServer(client));
+  const profilePath = process.env.CUIJIAO_PROFILE;
+  const profile = await readProfile(profilePath, {
+    userId: process.env.CUIJIAO_USER_ID,
+    baseUrl: process.env.CUIJIAO_ORIGIN,
+  });
+  await serveStdio(() =>
+    createServer({
+      profilePath,
+      userId: profile.userId,
+      baseUrl: profile.baseUrl,
+    }),
+  );
 } catch (error) {
   console.error(
     error instanceof BridgeError

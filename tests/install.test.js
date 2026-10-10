@@ -1,28 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { fixture } from "./helpers.js";
-
-function cli(args, input) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      process.execPath,
-      [fileURLToPath(new URL("../src/cli.js", import.meta.url)), ...args],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    let output = "",
-      error = "";
-    child.stdout.on("data", (chunk) => (output += chunk));
-    child.stderr.on("data", (chunk) => (error += chunk));
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code, output, error }));
-    child.stdin.on("error", () => {});
-    child.stdin.end(input);
-  });
-}
+import { fixture, cli } from "./helpers.js";
 
 test("one install command binds credentials and exports every agent for an MCP harness without logging the token", async (t) => {
   const f = await fixture(t);

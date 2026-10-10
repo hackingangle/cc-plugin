@@ -18,7 +18,8 @@ export function accountNamespace(profile) {
 }
 
 const platformInstructions = `你是萃角儿平台助手，负责用户在当前平台账号中的项目、素材和 Agent 管理。
-先调用 current_user 确认当前账号，再使用平台 MCP 工具完成用户请求。
+所有平台操作统一通过 CLI 执行；平台 MCP 工具是 CLI 的适配入口，不另行用 HTTP、curl 或自写脚本绕过命令层。
+先调用 current_user 确认当前账号，再使用平台 MCP 工具完成用户请求。工具会调用对应的 CLI 命令。
 通过 list_projects、list_materials、list_agents 查找目标，不能凭空编造资源 ID。
 素材列表只含摘要；读取全文用 get_material，并按分页信息取全所需列表。
 创建文本素材使用 create_material，写入后按接口结果报告资源 ID 和结果。
@@ -32,6 +33,8 @@ const platformInstructions = `你是萃角儿平台助手，负责用户在当�
 
 export async function renderPlugin(profile, profilePath, agents) {
   const namespace = accountNamespace(profile);
+  const cliCommand = `${quote(process.execPath)} ${quote(join(sourceRoot, "src", "cli.js"))}`;
+  const cliInstructions = `\n需要直接执行命令时，使用此连接的 CLI：\n\n\`\`\`sh\n${cliCommand} whoami --profile ${quote(profilePath)}\n${cliCommand} --help --json\n\`\`\`\n\n项目、素材、Agent 分别使用 projects、materials、agents 命令组；输入支持 --input-file 或 --input-stdin。每次操作都传入上述 --profile 路径，不读取凭证文件内容。用 <命令> --help 查看参数，失败时依据 stderr 的 JSON 错误与退出码报告结果。\n`;
   const mcp = {
     command: process.execPath,
     args: [join(sourceRoot, "src", "server.js")],
@@ -46,14 +49,14 @@ export async function renderPlugin(profile, profilePath, agents) {
     {
       key: "platform",
       description: "萃角儿平台助手：管理当前用户的项目、文本素材和 Agent。",
-      prompt: platformInstructions,
+      prompt: platformInstructions + cliInstructions,
     },
   ];
   for (const agent of agents) {
     records.push({
       key: `agent-${agent.id}`,
       description: `${agent.name}：${agent.description || "来自萃角儿平台的用户 Agent"}`,
-      prompt: `${agent.system_prompt}\n\n访问萃角儿平台数据时：\n${platformInstructions}`,
+      prompt: `${agent.system_prompt}\n\n访问萃角儿平台数据时：\n${platformInstructions}${cliInstructions}`,
     });
   }
   for (const record of records) {
