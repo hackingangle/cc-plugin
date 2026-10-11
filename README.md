@@ -36,7 +36,7 @@ node src/cli.js sync --harness codex --profile /path/to/profile.json
 
 CLI 可以独立运行：只需 Node.js 22+、本项目依赖、可访问的平台后端和平台 API Token，不需要 LLM、MCP 服务或 Codex / Claude Code。直接使用时先运行 `configure --url <平台 origin> --profile <连接文件>` 配置连接；自动化可加 `--token-stdin` 通过标准输入提供 Token，无需执行插件安装或 Agent 同步。
 
-现有 16 个平台工具全部对应 CLI 命令，MCP 保留原有工具名称和参数，每次调用通过子进程执行 CLI。命令参数、校验与接口映射统一维护在 `src/commands.js`，新增平台操作先补 CLI，再由 MCP 适配。
+现有 18 个平台工具全部对应 CLI 命令，MCP 保留原有工具名称和参数，每次调用通过子进程执行 CLI。命令参数、校验与接口映射统一维护在 `src/commands.js`，新增平台操作先补 CLI，再由 MCP 适配。
 
 | 能力 | CLI 命令 | 对应 MCP 工具 |
 | --- | --- | --- |
@@ -44,6 +44,7 @@ CLI 可以独立运行：只需 Node.js 22+、本项目依赖、可访问的平�
 | 项目 | `projects <操作>` | `list_projects`、`get_project`、`create_project`、`update_project`、`delete_project` |
 | 素材 | `materials <操作>` | `list_materials`、`get_material`、`create_material`、`update_material`、`delete_material` |
 | Agent | `agents <操作>` | `list_agents`、`get_agent`、`create_agent`、`update_agent`、`delete_agent` |
+| 语音识别 | `asr health`、`asr transcribe` | `asr_health`、`transcribe_audio` |
 
 三个命令组均提供 `list`、`get`、`create`、`update`、`delete` 操作。
 
@@ -58,6 +59,8 @@ node src/cli.js materials list --profile /path/to/profile.json --input '{"projec
 node src/cli.js materials get --profile /path/to/profile.json --input '{"material_id":8}'
 node src/cli.js projects update --profile /path/to/profile.json --input '{"project_id":7,"changes":{"title":"新标题"}}'
 node src/cli.js agents list --profile /path/to/profile.json
+node src/cli.js asr health --profile /path/to/profile.json
+node src/cli.js asr transcribe --profile /path/to/profile.json --input '{"audio_path":"/path/to/audio.pcm"}'
 ```
 
 示例中的 ID 需要替换为实际查询结果。输入字段沿用 MCP 参数：资源 ID 为数字，更新字段放在 `changes` 中，省略的字段保持原值。素材列表默认 `page=1`、`page_size=100`；详情命令返回全文。
@@ -75,6 +78,8 @@ node src/cli.js materials create --profile /path/to/profile.json --input-stdin <
 ```
 
 业务命令默认输出 JSON，`--json` 也可显式传入；`--help --json` 返回平台操作清单及输入 JSON Schema。成功结果写入 stdout，退出码为 `0`；删除成功返回 `{"deleted":true}`。失败时 stdout 为空，stderr 返回 `{"error":{"code":"http_401","message":"..."}}`，退出码为 `1`。参数错误码为 `invalid_arguments`，HTTP 错误为 `http_<状态码>`；请求超时返回 `request_failed`，写入结果应先查询确认，不自动重试。
+
+`asr transcribe` 的 `audio_path` 是本机原始 PCM 文件路径，须为 16kHz、单声道、16 位小端格式（`pcm_s16le`），最长 5 分钟；调用方需提供原始 PCM，CLI 不解码 WAV/MP3 或转换音频。`--input-file` 仍读取 JSON 参数文件。CLI 通过同一后端获取 30 秒内有效、单次使用的连接凭据，按实际音频速度发送 PCM，并用 `finish` 等待尾句最终结果。成功返回 `{"text":"识别全文","segments":[{"segment_id":"...","revision":2,"text":"识别分段"}]}`；不自动保存为素材。连接与就绪合计最多等待 15 秒，尾句等待也最多 15 秒；超时返回 `asr_timeout`，异常断开返回 `asr_disconnected`，云服务拒绝或故障返回 `asr_failed`，失败时不输出部分成功结果。MCP 调用为文件转写预留最多 375 秒。
 
 兼容性变化：原有安装、配置、身份查询和同步命令仍可使用，但 CLI 错误输出由纯文本改为上述 JSON；MCP 调用 CLI 失败时也返回同样的错误对象并设置 `isError`，MCP 自身的参数校验错误仍由 SDK 返回。依赖错误文本的脚本需改读 `error.code` / `error.message`。
 
@@ -94,11 +99,11 @@ Agent 列表接口当前返回当前用户的完整数组，无分页。列表�
 
 ## 数据工具与权限
 
-内置 16 个 MCP 工具：当前用户，以及项目、素材、Agent 各自的列表、详情、创建、修改和删除。素材列表带分页；详情工具读取全文。创建素材默认是文本素材，后端记录 `source=api`。
+内置 18 个 MCP 工具：当前用户，以及项目、素材、Agent 各自的列表、详情、创建、修改和删除，另有 ASR 健康查询与音频转写。素材列表带分页；详情工具读取全文。创建素材默认是文本素材，后端记录 `source=api`。语音识别复用提词器的服务端 ASR，音频会发送到平台配置的识别服务，可能按平台的云服务配置计费。
 
 文件上传、PDF 提取、作品版本管理和服务端付费生成尚未封装为插件工具。账号修改、Token 管理和模型凭证管理不向插件开放；已有后端限制保持不变。
 
-- 所有 API 请求携带用户自己的长期 Token。后端从 Token 确定用户，不信任调用方指定的归属。跨用户资源统一返回 404。
+- HTTP API 请求携带用户自己的长期 Token；ASR WebSocket 使用后端签发的一次性短期连接凭据。后端确定用户，不信任调用方指定的归属。跨用户资源统一返回 404。
 - 插件启动时核对连接的绑定信息；每次工具调用由 CLI 重新读取凭证文件，核对安装时绑定的平台、用户及 Token 当前所属用户。撤销 Token 后，下次请求立即失败。
 - 连接只接受 HTTPS origin；本地调试允许 loopback HTTP。禁止 URL 内置凭证、查询参数及重定向，避免把 Token 发往其他地址。
 - 自动安装的凭证文件为 `~/.config/cuijiao-bridge/profiles/<namespace>.json`；手动 configure 的默认路径为 `~/.config/cuijiao-bridge/profile.json`，权限为 `600`。App 复制的安装指令和目标 AI 会话中包含 Token；插件运行时从该文件读取。生成的插件只保存凭证文件路径和绑定用户，不把 Token 写入插件清单、Agent 提示词或日志。
@@ -132,6 +137,9 @@ npm run check
 # 独立 CLI 业务闭环：连接隔离的真实后端，不使用 LLM、MCP 或模型宿主
 BRIDGE_TEST_ORIGIN=http://127.0.0.1:18083 npm run test:cli:e2e
 
+# 独立 CLI 语音识别闭环：隔离后端必须配置 ASR mock 模式
+BRIDGE_TEST_ORIGIN=http://127.0.0.1:18083 npm run test:asr:e2e
+
 # 可选：实际 CLI 安装/更新，全部使用临时配置目录；需 Python 3.11+ 解析 TOML
 node --test tests/harness-smoke.js
 
@@ -152,6 +160,10 @@ BRIDGE_TEST_ORIGIN=http://127.0.0.1:8081 node --test tests/platform-smoke.js
 
 账号注册、测试 Token 的签发与撤销、最终账号清理由测试准备代码直接调用后端，因为这些账号级操作不属于当前业务 CLI 的开放范围。连接配置、身份查询、项目、素材和 Agent 操作均只通过 CLI 执行。测试子进程不继承模型密钥或宿主配置，PATH 指向临时目录。
 
+`test:asr:e2e` 对应 [独立 CLI ASR 用例](tests/asr-platform-smoke.js)，使用隔离后端的 ASR mock 模式，覆盖 API Token 配置、健康查询、单次连接凭据、PCM 发送、尾句结束与最终文本、stdio MCP → CLI 的同一链路，以及 Token 撤销后的拒绝。它不验证真实云服务的识别准确率；普通 `npm test` 覆盖音频输入限制、消息时序、分段修订、错误、超时与连接清理。
+
+2026-10-11 ASR CLI / MCP 已通过 `npm test` 的 20 项测试、`npm run check`，并在独立 tmpfs MySQL 与 Go API 的 mock ASR 后端通过 `test:asr:e2e` 的 2 项验证。使用临时账号与 API Token，测试后清理；未使用开发库或真实用户账号。未验证真实云服务的识别准确率，也未更新日常使用的插件安装。
+
 2026-10-10 已在独立的 Go API 与 tmpfs MySQL 测试库上通过上述四组闭环场景（Node 测试计数 5 项），验证真实持久化和删除结果；未使用开发库、既有验收库或真实用户账号。
 
 2026-10-09 CLI 改造已通过 13 项自动测试、`npm run check`，以及 Claude Code / Codex 的隔离安装与更新测试。覆盖 16 项 CLI 操作、真实 stdio MCP → CLI → 本地假 API、长文本文件与管道输入、参数拒绝、账号绑定及 Token 撤销。本轮未重跑真实后端与 UI 验收，也未更新日常账号的插件安装；更新使用中的插件需重新 `sync` 并开启新会话。
@@ -168,5 +180,8 @@ BRIDGE_TEST_ORIGIN=http://127.0.0.1:8081 node --test tests/platform-smoke.js
 | `GET/POST /api/projects`，`GET/PATCH/DELETE /api/projects/:id`                | 当前用户的项目管理                                                                       |
 | `GET/POST /api/projects/:id/materials`，`GET/PATCH/DELETE /api/materials/:id` | 素材列表、详情和管理；列表返回 `items`、`total`、`page`、`page_size`                     |
 | `GET/POST /api/agents`，`GET/PATCH/DELETE /api/agents/:id`                    | Agent 完整列表和管理；同步需要 `id`、`name`、`description`（可为 null）、`system_prompt` |
+| `GET /api/asr/health` | 语音识别服务状态和后端模式 |
+| `POST /api/asr/tickets` | API Token 换取一次性、30 秒有效的 WebSocket 连接凭据 |
+| `GET /api/asr/ws?ticket=<连接凭据>` | WebSocket PCM 转写；`connected` → 配置 → `ready` → 音频 → `finish` → 最终结果 → `finished` |
 
 请求使用 `Authorization: Bearer <用户 API Token>`，Token 为 `hd_` 加 43 位 URL-safe Base64。接口必须在服务端鉴权并检查资源归属，不能只依赖插件校验。删除成功返回 204，其余成功响应为 JSON；无效/已撤销 Token 返回 401，跨用户 ID 返回 404。创建素材时不接受客户端指定 `user_id` 或伪造来源。

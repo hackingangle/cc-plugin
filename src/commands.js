@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BridgeError } from "./client.js";
+import { transcribeAudio } from "./asr.js";
 
 const id = z.number().int().positive().safe();
 const title = z.string().min(1).max(1024);
@@ -180,6 +181,24 @@ command(
   "DELETE",
   (a) => `/api/agents/${a.agent_id}`,
 );
+command(
+  "asr_health",
+  "asr health",
+  "查看平台语音识别服务的状态和后端模式。",
+  {},
+  "GET",
+  () => "/api/asr/health",
+);
+commands.push({
+  name: "transcribe_audio",
+  cli: "asr transcribe",
+  description:
+    "使用平台 ASR 识别本机 16kHz 单声道 pcm_s16le 文件（最长 5 分钟），返回最终文本与分段；音频会发送到平台配置的 ASR 服务。",
+  schema: z.object({ audio_path: z.string().min(1) }).strict(),
+  method: "POST",
+  path: () => "/api/asr/tickets",
+  execute: transcribeAudio,
+});
 export async function executeCommand(command, input, client) {
   const parsed = command.schema.safeParse(input);
   if (!parsed.success) {
@@ -194,6 +213,8 @@ export async function executeCommand(command, input, client) {
   // Recheck ownership before every operation, including writes.
   const user = await client.identity();
   if (command.name === "current_user") return user;
+  if (command.execute)
+    return command.execute(parsed.data, client, command.path(parsed.data));
   return client.request(
     command.method,
     command.path(parsed.data),

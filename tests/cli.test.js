@@ -69,6 +69,7 @@ test("CLI covers identity and all project, material and agent operations with co
       { description: null },
     ],
     ["agents delete", { agent_id: 9 }, "DELETE", "/api/agents/9"],
+    ["asr health", {}, "GET", "/api/asr/health"],
   ];
   for (const [command, input, method, path, body] of cases) {
     f.state.calls.length = 0;
@@ -144,6 +145,7 @@ test("CLI rejects malformed inputs and unsafe options before HTTP; returns sanit
     ["projects", "list", "--input-file", join(f.directory, "missing.json")],
     ["projects", "unknown"],
     ["projects", "unknown", "--help"],
+    ["asr", "transcribe", "--input", '{"audio_path":1}'],
   ];
   for (const args of invalid) {
     const result = await cli([...args, "--profile", f.profilePath]);
@@ -185,7 +187,7 @@ test("CLI help discovers commands and schemas without a connection", async () =>
   const result = await cli(["--help", "--json"]);
   assert.equal(result.code, 0, result.error);
   const commands = JSON.parse(result.output).commands;
-  assert.equal(commands.length, 16);
+  assert.equal(commands.length, 18);
   const materials = commands.find(
     (command) => command.command === "materials create",
   );

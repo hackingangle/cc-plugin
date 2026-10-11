@@ -22,7 +22,15 @@ test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failur
   t.after(() => client.close());
   await client.connect(transport);
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 16);
+  assert.equal(tools.length, 18);
+  assert.equal(
+    tools.find((tool) => tool.name === "asr_health").annotations.readOnlyHint,
+    true,
+  );
+  assert.deepEqual(
+    tools.find((tool) => tool.name === "transcribe_audio").inputSchema.required,
+    ["audio_path"],
+  );
   assert.equal(
     tools.find((tool) => tool.name === "delete_project").annotations
       .destructiveHint,
@@ -32,6 +40,9 @@ test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failur
   const who = await call("current_user");
   assert.equal(JSON.parse(who.content[0].text).id, 1);
   assert.equal(JSON.stringify(who).includes(f.token), false);
+  const health = await call("asr_health");
+  assert.notEqual(health.isError, true);
+  assert.equal(f.state.calls.at(-1).path, "/api/asr/health");
   const created = await call("create_project", {
     title: "采访项目",
     category: "访谈",

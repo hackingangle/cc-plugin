@@ -21,7 +21,7 @@ export function runCli(command, input, { profilePath, userId, baseUrl }) {
           CUIJIAO_USER_ID: String(userId),
           CUIJIAO_ORIGIN: baseUrl,
         },
-        timeout: 40000,
+        timeout: command === "asr transcribe" ? 375000 : 40000,
         // Preserve full material responses; the platform owns content-size limits.
         maxBuffer: Infinity,
       },
