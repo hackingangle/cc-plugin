@@ -3,6 +3,17 @@ import { BridgeError } from "./client.js";
 import { transcribeAudio } from "./asr.js";
 
 const id = z.number().int().positive().safe();
+const idempotencyKey = z.string().min(1).max(128).regex(/^[!-~]+$/);
+const nonBlankText = z.string().refine((value) => value.trim().length > 0);
+const requirements = nonBlankText.refine(
+  (value) => Buffer.byteLength(value, "utf8") <= (16 << 10),
+);
+const workContent = nonBlankText.refine(
+  (value) => Buffer.byteLength(value, "utf8") <= (4 << 20),
+);
+const idempotencyHeaders = (input) => ({
+  "Idempotency-Key": input.idempotency_key,
+});
 const title = z.string().min(1).max(1024);
 const projectFields = {
   title,
@@ -28,7 +39,7 @@ const patch = (fields) =>
 
 export const commands = [];
 
-function command(name, cli, description, shape, method, path, body) {
+function command(name, cli, description, shape, method, path, body, headers) {
   commands.push({
     name,
     cli,
@@ -37,6 +48,7 @@ function command(name, cli, description, shape, method, path, body) {
     method,
     path,
     body,
+    headers,
   });
 }
 
@@ -158,7 +170,7 @@ command(
 command(
   "create_agent",
   "agents create",
-  "创建平台 agent，使用 harness 自身模型；不会创建或导出模型凭证。",
+  "创建平台 agent 的提示词与说明，使用 harness 当前模型执行。",
   agentFields,
   "POST",
   () => "/api/agents",
@@ -181,6 +193,118 @@ command(
   "DELETE",
   (a) => `/api/agents/${a.agent_id}`,
 );
+command(
+  "create_creation_task",
+  "creation create",
+  "冻结 Agent 提示词、创作要求和所选素材全文，返回 awaiting_result 任务；使用 harness 当前模型生成后调用 complete_creation_task 保存候选稿。",
+  {
+    project_id: id,
+    agent_id: id,
+    material_ids: z.array(id).min(1).max(20).refine(
+      (ids) => new Set(ids).size === ids.length,
+    ),
+    requirements,
+    idempotency_key: idempotencyKey,
+  },
+  "POST",
+  (a) => `/api/projects/${a.project_id}/creation-tasks`,
+  ({ agent_id, material_ids, requirements }) => ({
+    agent_id,
+    material_ids,
+    requirements,
+  }),
+  idempotencyHeaders,
+);
+command(
+  "list_creation_tasks",
+  "creation list",
+  "列出项目创作任务，包含任务 ID、状态和候选版本 ID；冻结上下文全文使用 get_creation_task。",
+  { project_id: id },
+  "GET",
+  (a) => `/api/projects/${a.project_id}/creation-tasks`,
+);
+command(
+  "get_creation_task",
+  "creation get",
+  "读取创作任务的完整冻结上下文、状态和候选版本 ID；生成时使用这里的 Agent 提示词、要求和素材全文。",
+  { task_id: id },
+  "GET",
+  (a) => `/api/creation-tasks/${a.task_id}`,
+);
+command(
+  "complete_creation_task",
+  "creation complete",
+  "将 harness 生成的完整正文原子保存为 generated 候选版本并完成任务，返回 {task,version}；不会自动采用。相同任务、正文和幂等键可回查后重试。",
+  { task_id: id, content: workContent, idempotency_key: idempotencyKey },
+  "POST",
+  (a) => `/api/creation-tasks/${a.task_id}/complete`,
+  ({ content }) => ({ content }),
+  idempotencyHeaders,
+);
+command(
+  "get_work",
+  "work get",
+  "读取项目当前作品、版本摘要和采用历史；候选版本全文使用 get_work_version。",
+  { project_id: id },
+  "GET",
+  (a) => `/api/projects/${a.project_id}/work`,
+);
+command(
+  "get_work_version",
+  "work version get",
+  "读取指定作品版本的全文。",
+  { project_id: id, version_id: id },
+  "GET",
+  (a) => `/api/projects/${a.project_id}/work/versions/${a.version_id}`,
+);
+command(
+  "edit_work_version",
+  "work edit",
+  "在父版本基础上保存新的候选稿，保留原版本；expected_version 使用最新 get_work 的 version，不会自动采用。",
+  {
+    project_id: id,
+    parent_version_id: id,
+    expected_version: id,
+    content: workContent,
+    idempotency_key: idempotencyKey,
+  },
+  "POST",
+  (a) => `/api/projects/${a.project_id}/work/versions`,
+  ({ parent_version_id, expected_version, content }) => ({
+    parent_version_id,
+    expected_version,
+    content,
+  }),
+  idempotencyHeaders,
+);
+for (const [action, name, description] of [
+  [
+    "adopt",
+    "adopt_work_version",
+    "采用候选版本为当前作品。仅在用户明确要求采用时调用；expected_version 使用最新 get_work 的 version。",
+  ],
+  [
+    "restore",
+    "restore_work_version",
+    "恢复曾采用过的版本为当前作品。仅在用户明确要求恢复时调用；expected_version 使用最新 get_work 的 version。",
+  ],
+]) {
+  command(
+    name,
+    `work ${action}`,
+    description,
+    {
+      project_id: id,
+      version_id: id,
+      expected_version: id,
+      idempotency_key: idempotencyKey,
+    },
+    "POST",
+    (a) => `/api/projects/${a.project_id}/work/${action}`,
+    ({ version_id, expected_version }) => ({ version_id, expected_version }),
+    idempotencyHeaders,
+  );
+}
 command(
   "asr_health",
   "asr health",
@@ -219,5 +343,6 @@ export async function executeCommand(command, input, client) {
     command.method,
     command.path(parsed.data),
     command.body?.(parsed.data),
+    command.headers?.(parsed.data),
   );
 }

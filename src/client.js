@@ -60,10 +60,19 @@ export class PlatformClient {
     this.userId = userId;
   }
 
-  async request(method, path, body) {
+  async request(method, path, body, headers = {}) {
     // Only code-defined API routes may carry the credential. Never follow redirects.
     if (!/^\/api\/[a-z0-9/?_=&-]+$/.test(path))
       throw new BridgeError("无效的平台接口路径。");
+    if (
+      Object.entries(headers).some(
+        ([name, value]) =>
+          name !== "Idempotency-Key" ||
+          typeof value !== "string" ||
+          !/^[!-~]{1,128}$/.test(value),
+      )
+    )
+      throw new BridgeError("无效的平台请求头。", "invalid_arguments");
     let response;
     try {
       response = await fetch(this.baseUrl + path, {
@@ -73,12 +82,15 @@ export class PlatformClient {
         headers: {
           Authorization: `Bearer ${this.token}`,
           "Content-Type": "application/json",
+          ...headers,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch {
       throw new BridgeError(
-        "平台请求失败或超时；写入结果可能未知，请先查询，勿自动重试写入。",
+        headers["Idempotency-Key"]
+          ? "平台请求失败或超时；写入结果可能未知，请先查询确认，再使用原幂等键及原输入重试。"
+          : "平台请求失败或超时；写入结果可能未知，请先查询，勿自动重试写入。",
         "request_failed",
       );
     }

@@ -44,6 +44,8 @@ export async function fixture(t) {
       },
     ],
     calls: [],
+    idempotencyKeys: [],
+    responses: new Map(),
     revoked: false,
     failAgents: false,
   };
@@ -56,6 +58,7 @@ export async function fixture(t) {
       path: request.url,
       body: raw ? JSON.parse(raw) : undefined,
     });
+    state.idempotencyKeys.push(request.headers["idempotency-key"]);
     response.setHeader("Content-Type", "application/json");
     const credential = request.headers.authorization;
     if (
@@ -80,6 +83,8 @@ export async function fixture(t) {
       response.writeHead(404).end("{}");
     } else if (request.url === "/api/projects/301") {
       response.writeHead(302, { Location: `${baseUrl}/outside` }).end();
+    } else if (state.responses.has(`${request.method} ${request.url}`)) {
+      response.end(JSON.stringify(state.responses.get(`${request.method} ${request.url}`)));
     } else if (request.method === "DELETE") response.writeHead(204).end();
     else response.end(JSON.stringify({ id: 7, ...state.calls.at(-1).body }));
   });
