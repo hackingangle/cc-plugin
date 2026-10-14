@@ -17,6 +17,7 @@ test("Claude Code and Codex install and refresh a generated local plugin in isol
   await mkdir(claudeDirectory);
   const env = {
     ...process.env,
+    HOME: f.directory,
     CODEX_HOME: codexDirectory,
     CLAUDE_CONFIG_DIR: claudeDirectory,
   };
@@ -66,7 +67,7 @@ test("Claude Code and Codex install and refresh a generated local plugin in isol
     (await exec("codex", ["mcp", "list", "--json"], { env })).stdout,
   );
   assert.ok(
-    JSON.stringify(codexServers).includes("CUIJIAO_PROFILE"),
+    JSON.stringify(codexServers).includes("CUIJIAO_CONNECTION_MODE"),
     "Codex must discover the bundled MCP server",
   );
   const native = join(

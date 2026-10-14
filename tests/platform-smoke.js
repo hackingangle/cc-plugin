@@ -82,6 +82,7 @@ test("live platform: token identity → agent sync → MCP CRUD → cross-user d
   });
   const synced = await syncAgents({
     profilePath: profiles[0],
+    marketplaceDirectory: join(directory, "marketplaces"),
     generateOnly: true,
   });
   assert.equal(synced.agentCount, 2);
@@ -138,7 +139,7 @@ test("live platform: token identity → agent sync → MCP CRUD → cross-user d
     true,
   );
   await assert.rejects(
-    syncAgents({ profilePath: profiles[0], generateOnly: true }),
+    syncAgents({ profilePath: profiles[0], marketplaceDirectory: join(directory, "marketplaces"), generateOnly: true }),
     /撤销/,
   );
 });

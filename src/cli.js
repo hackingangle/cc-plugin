@@ -1,13 +1,37 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import { configure, defaultProfile, readProfile } from "./profile.js";
-import { BridgeError, PlatformClient } from "./client.js";
-import { accountNamespace, syncAgents } from "./sync.js";
+import {
+  cloudOrigin,
+  automaticProfilePath,
+  configure,
+  currentConnection,
+  describeConnection,
+  initializeProfiles,
+  listConnections,
+  readProfile,
+  requireCurrentConnection,
+  useConnection,
+} from "./profile.js";
+import { BridgeError, normalizeOrigin, PlatformClient } from "./client.js";
+import { syncAgents } from "./sync.js";
 import { readToken } from "./token-input.js";
 import { commands, executeCommand } from "./commands.js";
+
+const setupCommands = [
+  {
+    command: "init",
+    usage: "init [--json]",
+    description: "初始化 ~/.cc 配置，保留已有连接。",
+  },
+  {
+    command: "configure",
+    usage: "configure [--url <origin>] [--profile <文件>] [--token-stdin]",
+    description: "配置当前目标的 Token，自动保存到 ~/.cc，不切换环境。",
+  },
+];
 
 async function readInput(values) {
   const sources = [
@@ -63,6 +87,9 @@ try {
     },
   });
   const command = positionals.join(" ");
+  const connectionCommand =
+    positionals[0] === "connections" &&
+    ["list", "current", "use"].includes(positionals[1]);
   const operation = commands.find((entry) => entry.cli === command);
   if (values.help || !command) {
     const selected = commands.filter(
@@ -74,7 +101,8 @@ try {
     if (
       command &&
       selected.length === 0 &&
-      !["install", "configure", "sync"].includes(command)
+      !["init", "install", "configure", "sync"].includes(command) &&
+      !connectionCommand
     )
       throw new BridgeError("未知命令，请运行 --help。", "invalid_arguments");
     const schemas = selected.map((entry) => ({
@@ -84,11 +112,22 @@ try {
       inputSchema: z.toJSONSchema(entry.schema),
     }));
     if (values.json)
-      console.log(JSON.stringify({ commands: schemas }, null, 2));
+      console.log(
+        JSON.stringify({
+          commands: schemas,
+          setupCommands: setupCommands.filter(
+            (entry) => !command || entry.command === command,
+          ),
+        }, null, 2),
+      );
     else {
-      if (!command || ["install", "configure", "sync"].includes(command))
+      if (
+        !command ||
+        ["init", "install", "configure", "sync"].includes(command) ||
+        connectionCommand
+      )
         console.log(
-          `萃角儿桥接插件\n\ninstall --url <平台 origin> --harness cc|codex|mcp [--token-stdin] [--profile <文件>]\n  按 Token 用户隔离连接并安装当前工具；mcp 生成配置与全部 Agent 技能，需当前工具继续接入。\nconfigure --url <平台 origin> [--profile <文件>] [--token-stdin]\n  隐藏输入 API Token，验证归属后保存为 600 权限的本机文件。\n  脚本可使用 --token-stdin 从管道输入。\nwhoami [--profile <文件>]\n  验证当前 Token 及绑定账号，不显示凭证。\nsync [--harness cc|codex|all] [--profile <文件>] [--dry-run | --generate-only]\n  同步全部平台 Agent 和默认平台助手；默认安装到两个 harness。\n  dry-run 只检查；generate-only 仅生成插件，供手动验收。`,
+          `萃角儿桥接插件\n\ninit\n  初始化 ~/.cc 配置；默认线上，不覆盖已有选择或 Token。\nconfigure [--url <平台 origin>] [--profile <文件>] [--token-stdin]\n  隐藏输入当前目标的 API Token，自动保存到 ~/.cc；不切换环境。\ninstall [--url <平台 origin>] --harness cc|codex|mcp [--token-stdin] [--profile <文件>]\n  默认连接 ${cloudOrigin}；按平台和用户隔离 Token，安装当前工具。\nconnections list [--profile <额外连接文件>]\n  列出已配置的连接，不显示 Token。\nconnections current\n  查看当前目标及 tokenConfigured 状态；未选择时默认线上。\nconnections use local|cloud [--profile <连接文件>]\n  持久切换目标，无须 Token；--profile 可指定已配置的账号连接。\nwhoami [--profile <文件>]\n  验证当前目标的 Token 和账号，缺 Token 时返回 token_not_configured。\nsync [--harness cc|codex|all] [--profile <文件>] [--dry-run | --generate-only]\n  同步当前目标的 Agent；默认安装到两个 harness。`,
         );
       console.log(
         "平台操作：\n" +
@@ -97,7 +136,7 @@ try {
             .join("\n"),
       );
       console.log(
-        "\n参数使用 --input '<JSON>'、--input-file <文件> 或 --input-stdin，任选其一。\n所有命令支持 --profile <文件>；成功 JSON 写入 stdout，失败 JSON 写入 stderr，退出码为 1。\n使用 <命令> --help 查看输入格式，--help --json 获取命令与 JSON Schema。",
+        "\n平台业务命令的参数使用 --input '<JSON>'、--input-file <文件> 或 --input-stdin，任选其一。\n业务命令可用 --profile <文件> 覆盖当前连接；成功 JSON 写入 stdout，失败 JSON 写入 stderr，退出码为 1。\n使用 <命令> --help 查看输入格式，--help --json 获取命令与 JSON Schema。",
       );
       if (operation)
         console.log(JSON.stringify(schemas[0].inputSchema, null, 2));
@@ -116,7 +155,9 @@ try {
         "invalid_arguments",
       );
     const input = await readInput(values);
-    const profilePath = resolve(values.profile || defaultProfile);
+    const profilePath = values.profile
+      ? resolve(values.profile)
+      : (await requireCurrentConnection()).profilePath;
     const binding =
       process.env.CUIJIAO_USER_ID !== undefined ||
       process.env.CUIJIAO_ORIGIN !== undefined
@@ -131,8 +172,8 @@ try {
     );
   } else {
     if (
-      positionals.length !== 1 ||
-      !["install", "configure", "sync"].includes(command)
+      (!connectionCommand && positionals.length !== 1) ||
+      (!["init", "install", "configure", "sync"].includes(command) && !connectionCommand)
     )
       throw new BridgeError("未知命令，请运行 --help。", "invalid_arguments");
     if (
@@ -144,27 +185,75 @@ try {
         "此命令不接受平台操作的 JSON 输入。",
         "invalid_arguments",
       );
-    const profilePath = resolve(values.profile || defaultProfile);
-    if (command === "install") {
+    const profilePath = values.profile ? resolve(values.profile) : undefined;
+    if (command === "init") {
+      if (Object.keys(values).some((name) => name !== "json"))
+        throw new BridgeError("init 只支持 --json。", "invalid_arguments");
+      console.log(JSON.stringify(await initializeProfiles(), null, 2));
+    } else if (command === "connections list") {
+      if (
+        positionals.length !== 2 ||
+        Object.keys(values).some((name) => !["profile", "json"].includes(name))
+      )
+        throw new BridgeError(
+          "connections list 只支持 --profile 和 --json。",
+          "invalid_arguments",
+        );
+      console.log(
+        JSON.stringify(
+          await listConnections(values.profile ? profilePath : undefined),
+          null,
+          2,
+        ),
+      );
+    } else if (command === "connections current") {
+      if (
+        positionals.length !== 2 ||
+        Object.keys(values).some((name) => name !== "json")
+      )
+        throw new BridgeError(
+          "connections current 不接受其他参数。",
+          "invalid_arguments",
+        );
+      console.log(JSON.stringify(await currentConnection(), null, 2));
+    } else if (positionals[0] === "connections" && positionals[1] === "use") {
+      if (
+        positionals.length !== 3 ||
+        Object.keys(values).some((name) => !["profile", "json"].includes(name))
+      )
+        throw new BridgeError(
+          "用法：connections use local|cloud [--profile <文件>]。",
+          "invalid_arguments",
+        );
+      console.log(
+        JSON.stringify(
+          await useConnection(positionals[2], values.profile ? profilePath : undefined),
+          null,
+          2,
+        ),
+      );
+    } else if (command === "install") {
       if (values["dry-run"] || values["generate-only"])
         throw new BridgeError(
           "install 不支持预览选项；使用 sync --dry-run，或 install --harness mcp 导出。",
         );
-      if (!values.url || !["cc", "codex", "mcp"].includes(values.harness))
+      if (!["cc", "codex", "mcp"].includes(values.harness))
         throw new BridgeError(
-          "install 需要 --url 和 --harness cc、codex 或 mcp；只安装当前工具。",
+          "install 需要 --harness cc、codex 或 mcp；只安装当前工具。",
         );
       const token = await readToken({ fromStdin: values["token-stdin"] });
-      const client = new PlatformClient({ baseUrl: values.url, token });
+      const client = new PlatformClient({
+        baseUrl: values.url === undefined ? cloudOrigin : values.url,
+        token,
+      });
       const user = await client.identity();
-      const connectionPath = values.profile
-        ? profilePath
-        : join(
-            dirname(defaultProfile),
-            "profiles",
-            `${accountNamespace({ baseUrl: client.baseUrl, userId: user.id })}.json`,
-          );
+      const connectionPath =
+        profilePath ?? automaticProfilePath(client.baseUrl, user.id);
       await configure(connectionPath, client.baseUrl, token);
+      await useConnection(
+        describeConnection(client.baseUrl).environment,
+        connectionPath,
+      );
       const result = await syncAgents({
         profilePath: connectionPath,
         harness: values.harness === "mcp" ? "all" : values.harness,
@@ -183,16 +272,37 @@ try {
         ),
       );
     } else if (command === "configure") {
-      if (!values.url)
-        throw new BridgeError("configure 需要 --url。Token 不接受命令行参数。");
+      if (!values.profile) await initializeProfiles();
+      const current =
+        !values.profile || values.url === undefined
+          ? await currentConnection()
+          : undefined;
+      if (values.url === undefined && current?.profileRequired)
+        throw new BridgeError(
+          `当前目标存在多个账号连接，请先运行 connections use ${current.environment} --profile <文件> 选择。`,
+          "connection_ambiguous",
+        );
+      const baseUrl = normalizeOrigin(
+        values.url === undefined ? current.origin : values.url,
+      );
       const token = await readToken({ fromStdin: values["token-stdin"] });
-      const user = await configure(profilePath, values.url, token.trim());
-      console.log(JSON.stringify({ user, profilePath }, null, 2));
+      const binding =
+        !values.profile && current?.origin === baseUrl
+          ? { userId: current.userId }
+          : undefined;
+      const user = await configure(profilePath, baseUrl, token, binding);
+      const configuredPath =
+        profilePath ?? automaticProfilePath(baseUrl, user.id);
+      if (!values.profile && current?.origin === baseUrl)
+        await useConnection(current.environment, configuredPath);
+      console.log(JSON.stringify({ user, profilePath: configuredPath }, null, 2));
     } else if (command === "sync") {
       console.log(
         JSON.stringify(
           await syncAgents({
-            profilePath,
+            profilePath: values.profile
+              ? profilePath
+              : (await requireCurrentConnection()).profilePath,
             harness: values.harness,
             dryRun: values["dry-run"],
             generateOnly: values["generate-only"],

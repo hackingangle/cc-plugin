@@ -83,6 +83,7 @@ test("sync exports every agent, updates/removes managed agents, preserves unrela
   const options = {
     profilePath: f.profilePath,
     codexHome,
+    marketplaceDirectory: join(f.directory, "marketplaces"),
     install: async (target) => {
       installs.push(target);
     },
@@ -94,7 +95,7 @@ test("sync exports every agent, updates/removes managed agents, preserves unrela
   assert.equal((await readdir(agentDir)).length, 3);
   const mcp = await readFile(join(result.pluginPath, ".mcp.json"), "utf8");
   assert.equal(mcp.includes(f.token), false);
-  assert.equal(JSON.parse(mcp).mcpServers.platform.env.CUIJIAO_USER_ID, "1");
+  assert.equal(JSON.parse(mcp).mcpServers.platform.env.CUIJIAO_CONNECTION_MODE, "active");
   const prompt = await readFile(
     join(agentDir, `${result.namespace}-agent-2.toml`),
     "utf8",
@@ -134,6 +135,7 @@ test("failed/invalid fetch and native collisions do not delete existing installa
   const options = {
     profilePath: f.profilePath,
     codexHome,
+    marketplaceDirectory: join(f.directory, "marketplaces"),
     harness: "codex",
     install: async () => {},
   };
@@ -164,6 +166,7 @@ test("dry-run does not write, generate-only does not install or touch harness fi
   const f = await fixture(t);
   const options = {
     profilePath: f.profilePath,
+    marketplaceDirectory: join(f.directory, "marketplaces"),
     install: async () => assert.fail("must not install"),
   };
   await syncAgents({ ...options, dryRun: true });

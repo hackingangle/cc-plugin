@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, open, rm, lstat } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { BridgeError, PlatformClient } from "./client.js";
-import { atomicWrite, readProfile } from "./profile.js";
+import { atomicWrite, cloudOrigin, legacyConfigDirectory, describeConnection, readProfile } from "./profile.js";
 import { installPlugin } from "./install.js";
 
 const sourceRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -13,9 +13,9 @@ const hash = (value) =>
   createHash("sha256").update(value).digest("hex").slice(0, 12);
 const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 
-export function accountNamespace(profile) {
-  return `cuijiao-${hash(profile.baseUrl)}-u${profile.userId}`;
-}
+export { accountNamespace } from "./profile.js";
+
+const activeNamespace = "cuijiao-active";
 
 const platformInstructions = `你是萃角儿平台助手，负责用户在当前平台账号中的项目、素材、Agent、创作任务、作品版本管理和语音识别。
 所有平台操作统一通过 CLI 执行；平台 MCP 工具是 CLI 的适配入口，不另行用 HTTP、curl 或自写脚本绕过命令层。
@@ -38,31 +38,29 @@ const platformInstructions = `你是萃角儿平台助手，负责用户在当�
 平台 Agent 修改后需运行 sync 更新本地副本，新会话加载新定义。`;
 
 export async function renderPlugin(profile, profilePath, agents) {
-  const namespace = accountNamespace(profile);
+  const namespace = activeNamespace;
+  const connection = describeConnection(profile.baseUrl);
+  const connectionInstructions = `平台数据使用本机当前目标，默认线上 ${cloudOrigin}。init 初始化 ~/.cc 配置，configure 隐藏输入当前目标的 Token 并自动保存，无须手动指定凭证路径。每次平台操作前通过 CLI 的 connections current 确认地址与 tokenConfigured 状态；用户明确要求切换时使用 connections use local|cloud，无须先配置 Token。业务命令需要当前目标的 Token，缺少时返回 token_not_configured；不能擅自退回其他环境。Token 配置与目标切换分开进行。切换后平台工具立即使用新目标；平台 Agent 的本地提示词副本须运行 sync 更新并开启新会话。\n`;
   const cliCommand = `${quote(process.execPath)} ${quote(join(sourceRoot, "src", "cli.js"))}`;
-  const cliInstructions = `\n需要直接执行命令时，使用此连接的 CLI：\n\n\`\`\`sh\n${cliCommand} whoami --profile ${quote(profilePath)}\n${cliCommand} --help --json\n\`\`\`\n\n项目、素材、Agent 分别使用 projects、materials、agents 命令组；创作任务使用 creation create/list/get/complete；作品使用 work get、work version get、work edit/adopt/restore；语音识别使用 asr health 和 asr transcribe。输入支持 --input-file 或 --input-stdin，文件内容均为 JSON，音频路径放在 audio_path 字段中；idempotency_key 自动映射为 Idempotency-Key 请求头，不进入请求正文。每次操作都传入上述 --profile 路径，不读取凭证文件内容。用 <命令> --help 查看参数，失败时依据 stderr 的 JSON 错误与退出码报告结果。\n`;
+  const cliInstructions = `\n需要直接执行命令时，使用此 CLI：\n\n\`\`\`sh\n${cliCommand} connections current\n${cliCommand} whoami\n${cliCommand} --help --json\n\`\`\`\n\n项目、素材、Agent 分别使用 projects、materials、agents 命令组；创作任务使用 creation create/list/get/complete；作品使用 work get、work version get、work edit/adopt/restore；语音识别使用 asr health 和 asr transcribe。输入支持 --input-file 或 --input-stdin，文件内容均为 JSON，音频路径放在 audio_path 字段中；idempotency_key 自动映射为 Idempotency-Key 请求头，不进入请求正文。操作默认使用当前连接；明确指定 --profile 时只操作该文件绑定的平台。不读取凭证文件内容。用 <命令> --help 查看参数，失败时依据 stderr 的 JSON 错误与退出码报告结果。\n`;
   const mcp = {
     command: process.execPath,
     args: [join(sourceRoot, "src", "server.js")],
-    env: {
-      CUIJIAO_PROFILE: profilePath,
-      CUIJIAO_USER_ID: String(profile.userId),
-      CUIJIAO_ORIGIN: profile.baseUrl,
-    },
+    env: { CUIJIAO_CONNECTION_MODE: "active" },
   };
   const files = new Map();
   const records = [
     {
       key: "platform",
-      description: "萃角儿平台助手：管理当前用户的项目、素材、Agent、创作任务、作品版本和语音识别。",
-      prompt: platformInstructions + cliInstructions,
+      description: `萃角儿平台助手（当前连接，默认 ${cloudOrigin}）：管理项目、素材、Agent、创作任务、作品版本和语音识别。`,
+      prompt: connectionInstructions + platformInstructions + cliInstructions,
     },
   ];
   for (const agent of agents) {
     records.push({
       key: `agent-${agent.id}`,
-      description: `${agent.name}：${agent.description || "来自萃角儿平台的用户 Agent"}`,
-      prompt: `${agent.system_prompt}\n\n访问萃角儿平台数据时：\n${platformInstructions}${cliInstructions}`,
+      description: `${agent.name}（从 ${connection.name} 同步）：${agent.description || "来自萃角儿平台的用户 Agent"}`,
+      prompt: `${agent.system_prompt}\n\n访问萃角儿平台数据时：\n${connectionInstructions}${platformInstructions}${cliInstructions}`,
     });
   }
   for (const record of records) {
@@ -75,10 +73,10 @@ export async function renderPlugin(profile, profilePath, agents) {
       `---\nname: ${record.key}\ndescription: ${JSON.stringify(record.description)}\n---\n\n${record.prompt}\n`,
     );
   }
-  const syncCommand = `${quote(process.execPath)} ${quote(join(sourceRoot, "src", "cli.js"))} sync --profile ${quote(profilePath)}`;
+  const syncCommand = `${quote(process.execPath)} ${quote(join(sourceRoot, "src", "cli.js"))} sync`;
   files.set(
     "skills/sync-agents/SKILL.md",
-    `---\nname: sync-agents\ndescription: 用户要求把萃角儿平台 Agent 同步安装到 Claude Code 或 Codex 时使用。\n---\n\n运行以下命令，并按用户指定的 harness 选择 cc、codex 或 all；未指定时根据当前工具选择 cc 或 codex，不要仅因本机存在其他 CLI 就安装到它们。其他 MCP 工具使用 --generate-only 更新导出，再更新自己的托管技能。\n\n\`\`\`sh\n${syncCommand} --harness <cc或codex>\n\`\`\`\n\n只运行同步命令，不读取凭证文件。失败时报告错误，不能声称已安装。成功后提示开启新会话加载 Agent。\n`,
+    `---\nname: sync-agents\ndescription: 用户要求同步当前连接的萃角儿 Agent 到 Claude Code 或 Codex 时使用。\n---\n\n先运行 ${cliCommand} connections current 确认目标。再运行以下命令，并按用户指定的 harness 选择 cc、codex 或 all；未指定时根据当前工具选择 cc 或 codex，不要仅因本机存在其他 CLI 就安装到它们。其他 MCP 工具使用 --generate-only 更新导出，再更新自己的托管技能。\n\n\`\`\`sh\n${syncCommand} --harness <cc或codex>\n\`\`\`\n\n只运行同步命令，不读取凭证文件。失败时报告错误，不能声称已安装。成功后提示开启新会话加载 Agent。\n`,
   );
   files.set(".mcp.json", json({ mcpServers: { platform: mcp } }));
   // Include runtime changes in the version so both harness caches refresh.
@@ -91,7 +89,7 @@ export async function renderPlugin(profile, profilePath, agents) {
   const manifest = {
     name: namespace,
     version,
-    description: "萃角儿当前用户 Agent 与平台数据工具",
+    description: `萃角儿当前连接的数据工具与从 ${connection.name} 同步的 Agent`,
     author: { name: "萃角儿" },
   };
   files.set(".claude-plugin/plugin.json", json(manifest));
@@ -105,7 +103,7 @@ export async function renderPlugin(profile, profilePath, agents) {
     const name = `${namespace}-${record.key}`;
     nativeFiles.set(
       `${name}.toml`,
-      `# Managed by cuijiao-bridge: ${namespace}\nname = ${JSON.stringify(name)}\ndescription = ${JSON.stringify(record.description)}\ndeveloper_instructions = ${JSON.stringify(record.prompt)}\n\n[mcp_servers.${namespace}]\ncommand = ${JSON.stringify(mcp.command)}\nargs = ${JSON.stringify(mcp.args)}\n\n[mcp_servers.${namespace}.env]\nCUIJIAO_PROFILE = ${JSON.stringify(profilePath)}\nCUIJIAO_USER_ID = ${JSON.stringify(String(profile.userId))}\nCUIJIAO_ORIGIN = ${JSON.stringify(profile.baseUrl)}\n`,
+      `# Managed by cuijiao-bridge: ${namespace}\nname = ${JSON.stringify(name)}\ndescription = ${JSON.stringify(record.description)}\ndeveloper_instructions = ${JSON.stringify(record.prompt)}\n\n[mcp_servers.${namespace}]\ncommand = ${JSON.stringify(mcp.command)}\nargs = ${JSON.stringify(mcp.args)}\n\n[mcp_servers.${namespace}.env]\nCUIJIAO_CONNECTION_MODE = "active"\n`,
     );
   }
   return { namespace, version, files, nativeFiles };
@@ -152,6 +150,7 @@ export async function syncAgents({
   generateOnly = false,
   dryRun = false,
   codexHome = process.env.CODEX_HOME || join(homedir(), ".codex"),
+  marketplaceDirectory = join(legacyConfigDirectory, "marketplaces"),
   install = installPlugin,
 }) {
   if (!["cc", "codex", "all"].includes(harness))
@@ -164,7 +163,7 @@ export async function syncAgents({
   const rendered = await renderPlugin(profile, profilePath, agents);
   const { namespace, version, files, nativeFiles } = rendered;
   const marketplace = `${namespace}-local`;
-  const root = join(dirname(profilePath), "marketplaces", namespace);
+  const root = join(marketplaceDirectory, namespace);
   const pluginPath = join(root, "versions", version);
   const nativeDirectory = join(codexHome, "agents");
   const result = {
@@ -217,14 +216,14 @@ export async function syncAgents({
       join(root, ".claude-plugin/marketplace.json"),
       json({
         name: marketplace,
-        description: "当前用户的萃角儿平台 Agent 与数据工具",
+        description: `萃角儿当前连接的数据工具与平台 Agent`,
         owner: { name: "萃角儿" },
         plugins: [{ name: namespace, source: relative }],
       }),
     );
     if (!generateOnly) {
       for (const target of harness === "all" ? ["cc", "codex"] : [harness]) {
-        await install(target, result);
+        await install(target, result, { codexHome });
         if (target === "codex") {
           for (const [name, content] of nativeFiles)
             await atomicWrite(join(nativeDirectory, name), content);

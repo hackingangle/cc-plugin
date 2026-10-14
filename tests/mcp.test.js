@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { fixture } from "./helpers.js";
+import { configure } from "../src/profile.js";
+import { cli, fixture } from "./helpers.js";
 
 test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failures and revocation", async (t) => {
   const f = await fixture(t);
@@ -23,6 +25,7 @@ test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failur
   await client.connect(transport);
   const { tools } = await client.listTools();
   assert.equal(tools.length, 27);
+  assert.match(tools[0].description, new RegExp(f.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.equal(
     tools.find((tool) => tool.name === "asr_health").annotations.readOnlyHint,
     true,
@@ -160,4 +163,58 @@ test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failur
     "binding_mismatch",
   );
   assert.equal(f.state.calls.length, count);
+});
+
+test("active MCP connection follows CLI switches without restarting", async (t) => {
+  const first = await fixture(t);
+  const second = await fixture(t);
+  const profiles = join(first.directory, ".config", "cuijiao-bridge", "profiles");
+  const firstPath = join(profiles, "first.json");
+  const secondPath = join(profiles, "second.json");
+  await configure(firstPath, first.baseUrl, first.token);
+  await configure(secondPath, second.baseUrl, second.token);
+  const env = { ...process.env, HOME: first.directory };
+  const use = async (path) => {
+    const result = await cli(
+      ["connections", "use", "local", "--profile", path],
+      undefined,
+      env,
+    );
+    assert.equal(result.code, 0, result.error);
+  };
+  await use(firstPath);
+
+  const client = new Client({ name: "switch-test", version: "1.0.0" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [fileURLToPath(new URL("../src/server.js", import.meta.url))],
+    env: { ...env, CUIJIAO_CONNECTION_MODE: "active" },
+    stderr: "pipe",
+  });
+  t.after(() => client.close());
+  await client.connect(transport);
+  const firstCalls = first.state.calls.length;
+  const secondCalls = second.state.calls.length;
+  const firstResult = await client.callTool({ name: "current_user", arguments: {} });
+  assert.notEqual(firstResult.isError, true);
+  assert.equal(first.state.calls.length, firstCalls + 1);
+  assert.equal(second.state.calls.length, secondCalls);
+
+  const cloud = await cli(["connections", "use", "cloud"], undefined, env);
+  assert.equal(cloud.code, 0, cloud.error);
+  assert.equal(JSON.parse(cloud.output).tokenConfigured, false);
+  const missingCloud = await client.callTool({ name: "current_user", arguments: {} });
+  assert.equal(missingCloud.isError, true);
+  assert.equal(
+    JSON.parse(missingCloud.content[0].text).error.code,
+    "token_not_configured",
+  );
+  assert.equal(first.state.calls.length, firstCalls + 1);
+  assert.equal(second.state.calls.length, secondCalls);
+
+  await use(secondPath);
+  const secondResult = await client.callTool({ name: "current_user", arguments: {} });
+  assert.notEqual(secondResult.isError, true);
+  assert.equal(first.state.calls.length, firstCalls + 1);
+  assert.equal(second.state.calls.length, secondCalls + 1);
 });

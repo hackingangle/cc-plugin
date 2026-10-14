@@ -2,14 +2,18 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { commands } from "./commands.js";
 import { BridgeError } from "./client.js";
 import { runCli } from "./run-cli.js";
+import { cloudOrigin, describeConnection } from "./profile.js";
 
 export function createServer(connection) {
   const server = new McpServer({ name: "cuijiao-bridge", version: "0.1.0" });
+  const connectionName = connection.active
+    ? `当前连接（默认 ${cloudOrigin}）`
+    : describeConnection(connection.baseUrl).name;
   for (const command of commands) {
     server.registerTool(
       command.name,
       {
-        description: command.description,
+        description: `${connectionName}：${command.description}`,
         inputSchema: command.schema,
         annotations: {
           readOnlyHint: command.method === "GET",

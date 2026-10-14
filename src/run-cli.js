@@ -4,23 +4,26 @@ import { BridgeError } from "./client.js";
 
 const cliPath = fileURLToPath(new URL("./cli.js", import.meta.url));
 
-export function runCli(command, input, { profilePath, userId, baseUrl }) {
+export function runCli(command, input, { profilePath, userId, baseUrl, active }) {
   return new Promise((resolve, reject) => {
+    const env = { ...process.env };
+    if (active) {
+      delete env.CUIJIAO_USER_ID;
+      delete env.CUIJIAO_ORIGIN;
+    } else {
+      env.CUIJIAO_USER_ID = String(userId);
+      env.CUIJIAO_ORIGIN = baseUrl;
+    }
     const child = execFile(
       process.execPath,
       [
         cliPath,
         ...command.split(" "),
-        "--profile",
-        profilePath,
+        ...(active ? [] : ["--profile", profilePath]),
         "--input-stdin",
       ],
       {
-        env: {
-          ...process.env,
-          CUIJIAO_USER_ID: String(userId),
-          CUIJIAO_ORIGIN: baseUrl,
-        },
+        env,
         timeout: command === "asr transcribe" ? 375000 : 40000,
         // Preserve complete material snapshots and candidate text.
         maxBuffer: Infinity,
