@@ -102,6 +102,8 @@ node src/cli.js asr transcribe --profile /path/to/profile.json --input '{"audio_
 
 示例中的 ID 需要替换为实际查询结果。输入字段沿用 MCP 参数：资源 ID 为数字，更新字段放在 `changes` 中，省略的字段保持原值。素材列表默认 `page=1`、`page_size=100`；详情命令返回全文。
 
+用户说的「素材 N」（UI 显示为 `#N`）是全局唯一的素材编号 `materials.id`，即 `list_materials` 摘要中的 `id`、`create_material` 返回的 `id`。读取、修改、删除素材时将 N 传给 `material_id`，创建创作任务时将素材编号放入 `material_ids`；不要使用 `project_id`、`current_asset_id`、期数（episode number）或列表位置。「创作任务 N」指创作任务 id（`task_id`），不要与素材编号混用。按素材编号访问遇到 `http_404` 时，应向用户说明找不到该编号的素材，不要换一个数字重试。
+
 JSON 输入可用 `--input '<JSON>'`、`--input-file <文件>` 或 `--input-stdin`，三者互斥。长正文优先使用文件或管道，避免命令行长度和引号转义问题，例如 `material.json` 内容：
 
 ```json
