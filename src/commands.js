@@ -104,7 +104,7 @@ command(
 command(
   "list_materials",
   "materials list",
-  "分页列出项目素材摘要；按 total/page/page_size 继续取下一页。全文使用 get_material。",
+  "分页列出项目素材摘要；按 total/page/page_size 继续取下一页，全文使用 get_material。摘要 id 与 create_material 返回的 id 均为全局唯一的素材编号 material_id，即用户说的「素材 N」（UI #N）；不是 project_id、current_asset_id、期数或列表位置，也不与「创作任务 N」的任务 id 混用。按素材编号访问遇到 http_404 时，向用户说明找不到该编号的素材，不换数字重试。",
   {
     project_id: id,
     page: id.default(1),
@@ -117,7 +117,7 @@ command(
 command(
   "get_material",
   "materials get",
-  "读取素材全文和元数据。",
+  "读取素材全文和元数据。用户说的「素材 N」（UI #N）就是全局唯一的 material_id，即 list_materials 摘要或 create_material 返回的 id；不是 project_id、current_asset_id、期数或列表位置，也不是「创作任务 N」的任务 id。遇到 http_404 时，向用户说明找不到该编号的素材，不换数字重试。",
   { material_id: id },
   "GET",
   (a) => `/api/materials/${a.material_id}`,
@@ -125,7 +125,7 @@ command(
 command(
   "create_material",
   "materials create",
-  "在项目中创建文本素材，来源由后端标记为 api；不负责 PDF 文件上传。",
+  "在项目中创建文本素材，来源由后端标记为 api；不负责 PDF 文件上传。返回的 id 与 list_materials 摘要 id 均为全局唯一的素材编号 material_id，即用户说的「素材 N」（UI #N）；不是 project_id、current_asset_id、期数或列表位置，也不与「创作任务 N」的任务 id 混用。后续按素材编号访问遇到 http_404 时，向用户说明找不到该编号的素材，不换数字重试。",
   { project_id: id, ...materialFields },
   "POST",
   (a) => `/api/projects/${a.project_id}/materials`,
@@ -134,7 +134,7 @@ command(
 command(
   "update_material",
   "materials update",
-  "修改素材标题、正文或原文链接。",
+  "修改素材标题、正文或原文链接。用户说的「素材 N」（UI #N）就是全局唯一的 material_id，即 list_materials 摘要或 create_material 返回的 id；不是 project_id、current_asset_id、期数或列表位置，也不是「创作任务 N」的任务 id。遇到 http_404 时，向用户说明找不到该编号的素材，不换数字重试。",
   {
     material_id: id,
     changes: patch({ ...materialFields, content: z.string() }),
@@ -146,7 +146,7 @@ command(
 command(
   "delete_material",
   "materials delete",
-  "删除指定素材。仅在用户已明确要求删除该素材时调用。",
+  "删除指定素材。仅在用户已明确要求删除该素材时调用。用户说的「素材 N」（UI #N）就是全局唯一的 material_id，即 list_materials 摘要或 create_material 返回的 id；不是 project_id、current_asset_id、期数或列表位置，也不是「创作任务 N」的任务 id。遇到 http_404 时，向用户说明找不到该编号的素材，不换数字重试。",
   { material_id: id },
   "DELETE",
   (a) => `/api/materials/${a.material_id}`,
@@ -196,7 +196,7 @@ command(
 command(
   "create_creation_task",
   "creation create",
-  "冻结 Agent 提示词、创作要求和所选素材全文，返回 awaiting_result 任务；使用 harness 当前模型生成后调用 complete_creation_task 保存候选稿。",
+  "冻结 Agent 提示词、创作要求和所选素材全文，返回 awaiting_result 任务；使用 harness 当前模型生成后调用 complete_creation_task 保存候选稿。material_ids 填全局唯一的素材编号 material_id：用户说的「素材 N」（UI #N），即 list_materials 摘要或 create_material 返回的 id；不是 project_id、current_asset_id、期数或列表位置。「创作任务 N」指另一个任务 id，不与素材编号混用。按素材编号访问遇到 http_404 时，向用户说明找不到该编号的素材，不换数字重试。",
   {
     project_id: id,
     agent_id: id,
