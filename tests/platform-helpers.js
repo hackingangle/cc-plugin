@@ -16,7 +16,7 @@ export async function platformFixture(t) {
     origin,
     "Use a bare origin without credentials or paths",
   );
-  const directory = await mkdtemp(join(tmpdir(), "cuijiao-live-"));
+  const directory = await mkdtemp(join(tmpdir(), "daliao-live-"));
   const password = randomUUID();
   const sessions = [];
   const api = async (method, path, token, body, expected) => {

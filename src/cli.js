@@ -159,11 +159,11 @@ try {
       ? resolve(values.profile)
       : (await requireCurrentConnection()).profilePath;
     const binding =
-      process.env.CUIJIAO_USER_ID !== undefined ||
-      process.env.CUIJIAO_ORIGIN !== undefined
+      process.env.DALIAO_USER_ID !== undefined ||
+      process.env.DALIAO_ORIGIN !== undefined
         ? {
-            userId: process.env.CUIJIAO_USER_ID,
-            baseUrl: process.env.CUIJIAO_ORIGIN,
+            userId: process.env.DALIAO_USER_ID,
+            baseUrl: process.env.DALIAO_ORIGIN,
           }
         : undefined;
     const client = new PlatformClient(await readProfile(profilePath, binding));

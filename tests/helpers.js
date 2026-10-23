@@ -31,7 +31,7 @@ export function cli(args, input, env = process.env) {
 }
 
 export async function fixture(t) {
-  const directory = await mkdtemp(join(tmpdir(), "cuijiao-bridge-"));
+  const directory = await mkdtemp(join(tmpdir(), "daliao-bridge-"));
   const token = "hd_" + "a".repeat(43);
   const otherToken = "hd_" + "b".repeat(43);
   const state = {

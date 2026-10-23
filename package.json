@@ -1,5 +1,5 @@
 {
-  "name": "cuijiao-bridge",
+  "name": "daliao-bridge",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "bin": {
-    "cuijiao-bridge": "src/cli.js"
+    "daliao-bridge": "src/cli.js"
   },
   "scripts": {
     "test": "node --test tests/*.test.js",

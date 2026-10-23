@@ -15,14 +15,15 @@ test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failur
     command: process.execPath,
     args: [fileURLToPath(new URL("../src/server.js", import.meta.url))],
     env: {
-      CUIJIAO_PROFILE: f.profilePath,
-      CUIJIAO_USER_ID: "1",
-      CUIJIAO_ORIGIN: f.baseUrl,
+      DALIAO_PROFILE: f.profilePath,
+      DALIAO_USER_ID: "1",
+      DALIAO_ORIGIN: f.baseUrl,
     },
     stderr: "pipe",
   });
   t.after(() => client.close());
   await client.connect(transport);
+  assert.equal(client.getServerVersion().name, "daliao-bridge");
   const { tools } = await client.listTools();
   assert.equal(tools.length, 27);
   assert.match(tools[0].description, new RegExp(f.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -168,7 +169,7 @@ test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failur
 test("active MCP connection follows CLI switches without restarting", async (t) => {
   const first = await fixture(t);
   const second = await fixture(t);
-  const profiles = join(first.directory, ".config", "cuijiao-bridge", "profiles");
+  const profiles = join(first.directory, ".cc", "profiles");
   const firstPath = join(profiles, "first.json");
   const secondPath = join(profiles, "second.json");
   await configure(firstPath, first.baseUrl, first.token);
@@ -188,7 +189,7 @@ test("active MCP connection follows CLI switches without restarting", async (t) 
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [fileURLToPath(new URL("../src/server.js", import.meta.url))],
-    env: { ...env, CUIJIAO_CONNECTION_MODE: "active" },
+    env: { ...env, DALIAO_CONNECTION_MODE: "active" },
     stderr: "pipe",
   });
   t.after(() => client.close());

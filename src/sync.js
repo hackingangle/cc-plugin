@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { BridgeError, PlatformClient } from "./client.js";
-import { atomicWrite, cloudOrigin, legacyConfigDirectory, describeConnection, readProfile } from "./profile.js";
+import { atomicWrite, cloudOrigin, configDirectory, describeConnection, readProfile } from "./profile.js";
 import { installPlugin } from "./install.js";
 
 const sourceRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -15,7 +15,7 @@ const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 
 export { accountNamespace } from "./profile.js";
 
-const activeNamespace = "cuijiao-active";
+const activeNamespace = "daliao-active";
 
 const platformInstructions = `你是大料平台助手，负责用户在当前平台账号中的项目、素材、Agent、创作任务、作品版本管理和语音识别。
 所有平台操作统一通过 CLI 执行；平台 MCP 工具是 CLI 的适配入口，不另行用 HTTP、curl 或自写脚本绕过命令层。
@@ -46,7 +46,7 @@ export async function renderPlugin(profile, profilePath, agents) {
   const mcp = {
     command: process.execPath,
     args: [join(sourceRoot, "src", "server.js")],
-    env: { CUIJIAO_CONNECTION_MODE: "active" },
+    env: { DALIAO_CONNECTION_MODE: "active" },
   };
   const files = new Map();
   const records = [
@@ -103,7 +103,7 @@ export async function renderPlugin(profile, profilePath, agents) {
     const name = `${namespace}-${record.key}`;
     nativeFiles.set(
       `${name}.toml`,
-      `# Managed by cuijiao-bridge: ${namespace}\nname = ${JSON.stringify(name)}\ndescription = ${JSON.stringify(record.description)}\ndeveloper_instructions = ${JSON.stringify(record.prompt)}\n\n[mcp_servers.${namespace}]\ncommand = ${JSON.stringify(mcp.command)}\nargs = ${JSON.stringify(mcp.args)}\n\n[mcp_servers.${namespace}.env]\nCUIJIAO_CONNECTION_MODE = "active"\n`,
+      `# Managed by daliao-bridge: ${namespace}\nname = ${JSON.stringify(name)}\ndescription = ${JSON.stringify(record.description)}\ndeveloper_instructions = ${JSON.stringify(record.prompt)}\n\n[mcp_servers.${namespace}]\ncommand = ${JSON.stringify(mcp.command)}\nargs = ${JSON.stringify(mcp.args)}\n\n[mcp_servers.${namespace}.env]\nDALIAO_CONNECTION_MODE = "active"\n`,
     );
   }
   return { namespace, version, files, nativeFiles };
@@ -133,7 +133,7 @@ export async function nativeAgentChanges(directory, namespace, files) {
     ),
     ...files.keys(),
   ]);
-  const marker = `# Managed by cuijiao-bridge: ${namespace}\n`;
+  const marker = `# Managed by daliao-bridge: ${namespace}\n`;
   const stale = [];
   for (const name of candidates) {
     const previous = await existingText(join(directory, name));
@@ -150,7 +150,7 @@ export async function syncAgents({
   generateOnly = false,
   dryRun = false,
   codexHome = process.env.CODEX_HOME || join(homedir(), ".codex"),
-  marketplaceDirectory = join(legacyConfigDirectory, "marketplaces"),
+  marketplaceDirectory = join(configDirectory, "marketplaces"),
   install = installPlugin,
 }) {
   if (!["cc", "codex", "all"].includes(harness))
@@ -223,7 +223,7 @@ export async function syncAgents({
     );
     if (!generateOnly) {
       for (const target of harness === "all" ? ["cc", "codex"] : [harness]) {
-        await install(target, result, { codexHome });
+        await install(target, result);
         if (target === "codex") {
           for (const [name, content] of nativeFiles)
             await atomicWrite(join(nativeDirectory, name), content);

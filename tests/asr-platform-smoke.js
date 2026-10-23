@@ -73,9 +73,9 @@ test("standalone CLI authenticates ASR, sends PCM and receives flushed final tex
         args: [fileURLToPath(new URL("../src/server.js", import.meta.url))],
         env: {
           ...env,
-          CUIJIAO_PROFILE: profile,
-          CUIJIAO_USER_ID: String(session.user.id),
-          CUIJIAO_ORIGIN: origin,
+          DALIAO_PROFILE: profile,
+          DALIAO_USER_ID: String(session.user.id),
+          DALIAO_ORIGIN: origin,
         },
         stderr: "pipe",
       }),
