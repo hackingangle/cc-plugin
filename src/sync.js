@@ -17,7 +17,7 @@ export { accountNamespace } from "./profile.js";
 
 const activeNamespace = "cuijiao-active";
 
-const platformInstructions = `你是萃角儿平台助手，负责用户在当前平台账号中的项目、素材、Agent、创作任务、作品版本管理和语音识别。
+const platformInstructions = `你是大料平台助手，负责用户在当前平台账号中的项目、素材、Agent、创作任务、作品版本管理和语音识别。
 所有平台操作统一通过 CLI 执行；平台 MCP 工具是 CLI 的适配入口，不另行用 HTTP、curl 或自写脚本绕过命令层。
 先调用 current_user 确认当前账号，再使用平台 MCP 工具完成用户请求。工具会调用对应的 CLI 命令。
 通过 list_projects、list_materials、list_agents 查找目标，不能凭空编造资源 ID。
@@ -52,15 +52,15 @@ export async function renderPlugin(profile, profilePath, agents) {
   const records = [
     {
       key: "platform",
-      description: `萃角儿平台助手（当前连接，默认 ${cloudOrigin}）：管理项目、素材、Agent、创作任务、作品版本和语音识别。`,
+      description: `大料平台助手（当前连接，默认 ${cloudOrigin}）：管理项目、素材、Agent、创作任务、作品版本和语音识别。`,
       prompt: connectionInstructions + platformInstructions + cliInstructions,
     },
   ];
   for (const agent of agents) {
     records.push({
       key: `agent-${agent.id}`,
-      description: `${agent.name}（从 ${connection.name} 同步）：${agent.description || "来自萃角儿平台的用户 Agent"}`,
-      prompt: `${agent.system_prompt}\n\n访问萃角儿平台数据时：\n${connectionInstructions}${platformInstructions}${cliInstructions}`,
+      description: `${agent.name}（从 ${connection.name} 同步）：${agent.description || "来自大料平台的用户 Agent"}`,
+      prompt: `${agent.system_prompt}\n\n访问大料平台数据时：\n${connectionInstructions}${platformInstructions}${cliInstructions}`,
     });
   }
   for (const record of records) {
@@ -76,7 +76,7 @@ export async function renderPlugin(profile, profilePath, agents) {
   const syncCommand = `${quote(process.execPath)} ${quote(join(sourceRoot, "src", "cli.js"))} sync`;
   files.set(
     "skills/sync-agents/SKILL.md",
-    `---\nname: sync-agents\ndescription: 用户要求同步当前连接的萃角儿 Agent 到 Claude Code 或 Codex 时使用。\n---\n\n先运行 ${cliCommand} connections current 确认目标。再运行以下命令，并按用户指定的 harness 选择 cc、codex 或 all；未指定时根据当前工具选择 cc 或 codex，不要仅因本机存在其他 CLI 就安装到它们。其他 MCP 工具使用 --generate-only 更新导出，再更新自己的托管技能。\n\n\`\`\`sh\n${syncCommand} --harness <cc或codex>\n\`\`\`\n\n只运行同步命令，不读取凭证文件。失败时报告错误，不能声称已安装。成功后提示开启新会话加载 Agent。\n`,
+    `---\nname: sync-agents\ndescription: 用户要求同步当前连接的大料 Agent 到 Claude Code 或 Codex 时使用。\n---\n\n先运行 ${cliCommand} connections current 确认目标。再运行以下命令，并按用户指定的 harness 选择 cc、codex 或 all；未指定时根据当前工具选择 cc 或 codex，不要仅因本机存在其他 CLI 就安装到它们。其他 MCP 工具使用 --generate-only 更新导出，再更新自己的托管技能。\n\n\`\`\`sh\n${syncCommand} --harness <cc或codex>\n\`\`\`\n\n只运行同步命令，不读取凭证文件。失败时报告错误，不能声称已安装。成功后提示开启新会话加载 Agent。\n`,
   );
   files.set(".mcp.json", json({ mcpServers: { platform: mcp } }));
   // Include runtime changes in the version so both harness caches refresh.
@@ -89,8 +89,8 @@ export async function renderPlugin(profile, profilePath, agents) {
   const manifest = {
     name: namespace,
     version,
-    description: `萃角儿当前连接的数据工具与从 ${connection.name} 同步的 Agent`,
-    author: { name: "萃角儿" },
+    description: `大料当前连接的数据工具与从 ${connection.name} 同步的 Agent`,
+    author: { name: "大料" },
   };
   files.set(".claude-plugin/plugin.json", json(manifest));
   files.set(
@@ -216,8 +216,8 @@ export async function syncAgents({
       join(root, ".claude-plugin/marketplace.json"),
       json({
         name: marketplace,
-        description: `萃角儿当前连接的数据工具与平台 Agent`,
-        owner: { name: "萃角儿" },
+        description: `大料当前连接的数据工具与平台 Agent`,
+        owner: { name: "大料" },
         plugins: [{ name: namespace, source: relative }],
       }),
     );

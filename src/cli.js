@@ -127,7 +127,7 @@ try {
         connectionCommand
       )
         console.log(
-          `萃角儿桥接插件\n\ninit\n  初始化 ~/.cc 配置；默认线上，不覆盖已有选择或 Token。\nconfigure [--url <平台 origin>] [--profile <文件>] [--token-stdin]\n  隐藏输入当前目标的 API Token，自动保存到 ~/.cc；不切换环境。\ninstall [--url <平台 origin>] --harness cc|codex|mcp [--token-stdin] [--profile <文件>]\n  默认连接 ${cloudOrigin}；按平台和用户隔离 Token，安装当前工具。\nconnections list [--profile <额外连接文件>]\n  列出已配置的连接，不显示 Token。\nconnections current\n  查看当前目标及 tokenConfigured 状态；未选择时默认线上。\nconnections use local|cloud [--profile <连接文件>]\n  持久切换目标，无须 Token；--profile 可指定已配置的账号连接。\nwhoami [--profile <文件>]\n  验证当前目标的 Token 和账号，缺 Token 时返回 token_not_configured。\nsync [--harness cc|codex|all] [--profile <文件>] [--dry-run | --generate-only]\n  同步当前目标的 Agent；默认安装到两个 harness。`,
+          `大料桥接插件\n\ninit\n  初始化 ~/.cc 配置；默认线上，不覆盖已有选择或 Token。\nconfigure [--url <平台 origin>] [--profile <文件>] [--token-stdin]\n  隐藏输入当前目标的 API Token，自动保存到 ~/.cc；不切换环境。\ninstall [--url <平台 origin>] --harness cc|codex|mcp [--token-stdin] [--profile <文件>]\n  默认连接 ${cloudOrigin}；按平台和用户隔离 Token，安装当前工具。\nconnections list [--profile <额外连接文件>]\n  列出已配置的连接，不显示 Token。\nconnections current\n  查看当前目标及 tokenConfigured 状态；未选择时默认线上。\nconnections use local|cloud [--profile <连接文件>]\n  持久切换目标，无须 Token；--profile 可指定已配置的账号连接。\nwhoami [--profile <文件>]\n  验证当前目标的 Token 和账号，缺 Token 时返回 token_not_configured。\nsync [--harness cc|codex|all] [--profile <文件>] [--dry-run | --generate-only]\n  同步当前目标的 Agent；默认安装到两个 harness。`,
         );
       console.log(
         "平台操作：\n" +

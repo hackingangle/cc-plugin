@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "萃角儿平台与 Claude Code、Codex 的本地桥接插件",
+  "description": "大料平台与 Claude Code、Codex 的本地桥接插件",
   "engines": {
     "node": ">=22"
   },

@@ -1,6 +1,6 @@
 # 给 AI 工具的安装说明
 
-用户从萃角儿 App 复制本页链接和连接 JSON 后，将整段内容交给当前 AI 工具执行。目标是在当前工具中完成安装与连接；不要把下面的步骤再转交给用户手工执行。尊重当前工具自身的权限和审批规则。
+用户从大料 App 复制本页链接和连接 JSON 后，将整段内容交给当前 AI 工具执行。目标是在当前工具中完成安装与连接；不要把下面的步骤再转交给用户手工执行。尊重当前工具自身的权限和审批规则。
 
 ## 1. 识别当前工具并准备源码
 
@@ -26,7 +26,7 @@ node src/cli.js install --url <platform_url> --harness <cc|codex|mcp> --token-st
 
 用执行工具的标准输入把令牌传给这个进程，然后关闭 stdin。不要使用包含令牌的命令行参数、`echo` 命令、环境变量或日志。若执行工具只支持文件输入，使用权限 600 的临时输入文件，执行后立即删除；不要把文件放进仓库。不要读取或展示已保存的凭证文件。App 令牌会存在用户粘贴的会话记录中，不要在回复中重复它。
 
-CLI 会先验证 Token 所属用户，按平台和用户 ID 分别保存连接文件到 `~/.cc/profiles/`，再同步全部 Agent 和默认平台助手。插件使用固定名称 `cuijiao-active`，可通过当前连接使用本地或线上服务；各服务的 Token 分开保存。只依据真实返回结果报告成功。保存文件权限为 600；输出的 `profilePath`、`namespace`、`agentCount`、`mcpConfigPath`、`skillsPath` 都不含 Token。
+CLI 会先验证 Token 所属用户，按平台和用户 ID 分别保存连接文件到 `~/.cc/profiles/`，再同步全部 Agent 和默认平台助手。大料插件的 MCP 名仍为 `cuijiao-active`，可通过当前连接使用本地或线上服务；各服务的 Token 分开保存。只依据真实返回结果报告成功。保存文件权限为 600；输出的 `profilePath`、`namespace`、`agentCount`、`mcpConfigPath`、`skillsPath` 都不含 Token。
 
 `install` 会把本次连接设为当前连接，将连接文件路径、地址和用户 ID 写入本机的 `~/.cc/active.json`，不复制 Token。生成的 marketplace 仍使用 `~/.config/cuijiao-bridge/marketplaces/`，保留已注册的插件源路径。
 

@@ -1,12 +1,14 @@
-# 萃角儿桥接插件
+# 大料桥接插件
 
-把当前用户在萃角儿平台上的全部 Agent 同步安装到 Claude Code 和 Codex，并附带一个「平台助手」。平台操作统一封装到 CLI，harness 通过 MCP → CLI → 平台 API 管理该用户的项目、文本素材和 Agent，也可直接调用 CLI。
+把当前用户在大料平台上的全部 Agent 同步安装到 Claude Code 和 Codex，并附带一个「平台助手」。平台操作统一封装到 CLI，harness 通过 MCP → CLI → 平台 API 管理该用户的项目、文本素材和 Agent，也可直接调用 CLI。
+
+大料的 MCP 名仍为 `cuijiao-active`，npm 包名和 CLI 命令仍为 `cuijiao-bridge`，用于兼容已有安装。环境变量、配置目录和服务地址保持不变。
 
 插件运行在用户电脑上，默认选择线上服务 `https://cc.agoodbit.com`，也可在本机持久切换到本地服务。环境选择与 Token 配置分开：没有 Token 也能切换，访问平台数据和同步 Agent 时才需要该服务的 Token。后端负责鉴权、资源归属、冻结创作上下文和保存作品；插件不连接数据库，不接收 `user_id` 覆盖参数。Agent 使用 harness 当前模型，模型选择、密钥和推理设置由 harness 管理，平台不提供模型配置或执行模型。
 
 ## 从 App 复制一次
 
-在萃角儿 App 打开「工具 → 连接 AI 工具」，点击「复制安装指令」，直接粘贴到正在使用的 Claude Code、Codex 或其他 AI 工具的**对话框**并发送。无需先选 harness、打开终端或手动创建令牌。
+在大料 App 打开「工具 → 连接 AI 工具」，点击「复制安装指令」，直接粘贴到正在使用的 Claude Code、Codex 或其他 AI 工具的**对话框**并发送。无需先选 harness、打开终端或手动创建令牌。
 
 App 会为当前会话所在的服务签发专用 API Token，将该服务地址、Token 和 [AI 安装说明](INSTALL.md) 一起复制。Web App 的服务地址可能是 `https://cc.agoodbit.com`，iOS App 可能使用 `https://api.agoodbit.com`；安装 App 复制的指令时沿用其中的地址。AI 根据当前工具识别安装方式、准备依赖、完成连接并同步全部 Agent 和默认平台助手。本地 App 签发的是本地服务的 Token，不能用于连接线上服务；安装线上连接需从线上 App 获取 Token。复制内容含访问凭据，也会进入目标 AI 工具的会话记录；仅粘贴到信任的工具，不公开分享。可在 App「API 令牌」撤销对应的「AI 工具安装」令牌。
 
@@ -63,7 +65,7 @@ node src/cli.js sync --harness codex
 
 业务 CLI、`sync` 和当前插件的 MCP 工具在未显式指定连接文件时读取当前选择。所选环境没有凭证时返回 `token_not_configured`，需要选择账号时返回 `connection_ambiguous`；不会改用另一个环境的凭证。业务 CLI 和 `sync` 的 `--profile` 仅覆盖本次命令。切换后 MCP 数据操作立即使用新选择；具备相应凭证后才能访问数据。本地 Agent 的名称、说明和提示词是上次同步的快照；先切换当前连接，再运行 `sync` 并开启新会话加载。
 
-更新源码时在安装目录运行 `git pull --ff-only`、`npm ci`，再同步当前工具。`--dry-run` 只查看范围；`--generate-only` 仅导出。高级用法 `configure --url <origin> [--profile <连接文件>]` 仍可指定平台和凭证文件，只保存凭证，不切换环境；更换账号时使用独立的连接文件。
+更新源码时在安装目录运行 `git pull --ff-only`、`npm ci`，再运行 `sync --harness <当前工具>` 并开启新会话，加载更新后的大料插件和 Agent 说明。`--dry-run` 只查看范围；`--generate-only` 仅导出。高级用法 `configure --url <origin> [--profile <连接文件>]` 仍可指定平台和凭证文件，只保存凭证，不切换环境；更换账号时使用独立的连接文件。
 
 如果配置时提示 404，先确认平台已支持 `GET /api/integrations/me` 和 Agent 接口。插件发布不代表目标平台后端已经更新。
 
