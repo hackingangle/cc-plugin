@@ -53,9 +53,9 @@ test("live platform: token identity → agent sync → MCP CRUD → cross-user d
         command: process.execPath,
         args: [fileURLToPath(new URL("../src/server.js", import.meta.url))],
         env: {
-          CUIJIAO_PROFILE: profilePath,
-          CUIJIAO_USER_ID: String(session.user.id),
-          CUIJIAO_ORIGIN: origin,
+          DALIAO_PROFILE: profilePath,
+          DALIAO_USER_ID: String(session.user.id),
+          DALIAO_ORIGIN: origin,
         },
         stderr: "pipe",
       }),

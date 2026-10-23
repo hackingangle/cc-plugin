@@ -8,11 +8,11 @@ export function runCli(command, input, { profilePath, userId, baseUrl, active })
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
     if (active) {
-      delete env.CUIJIAO_USER_ID;
-      delete env.CUIJIAO_ORIGIN;
+      delete env.DALIAO_USER_ID;
+      delete env.DALIAO_ORIGIN;
     } else {
-      env.CUIJIAO_USER_ID = String(userId);
-      env.CUIJIAO_ORIGIN = baseUrl;
+      env.DALIAO_USER_ID = String(userId);
+      env.DALIAO_ORIGIN = baseUrl;
     }
     const child = execFile(
       process.execPath,

@@ -1,12 +1,14 @@
-# 萃角儿桥接插件
+# 大料桥接插件
 
-把当前用户在萃角儿平台上的全部 Agent 同步安装到 Claude Code 和 Codex，并附带一个「平台助手」。平台操作统一封装到 CLI，harness 通过 MCP → CLI → 平台 API 管理该用户的项目、文本素材和 Agent，也可直接调用 CLI。
+把当前用户在大料平台上的全部 Agent 同步安装到 Claude Code 和 Codex，并附带一个「平台助手」。平台操作统一封装到 CLI，harness 通过 MCP → CLI → 平台 API 管理该用户的项目、文本素材和 Agent，也可直接调用 CLI。
+
+大料的 MCP 名为 `daliao-active`，npm 包名和 CLI 命令为 `daliao-bridge`。插件生成文件存放在 `~/.config/daliao-bridge/`。
 
 插件运行在用户电脑上，默认选择线上服务 `https://cc.agoodbit.com`，也可在本机持久切换到本地服务。环境选择与 Token 配置分开：没有 Token 也能切换，访问平台数据和同步 Agent 时才需要该服务的 Token。后端负责鉴权、资源归属、冻结创作上下文和保存作品；插件不连接数据库，不接收 `user_id` 覆盖参数。Agent 使用 harness 当前模型，模型选择、密钥和推理设置由 harness 管理，平台不提供模型配置或执行模型。
 
 ## 从 App 复制一次
 
-在萃角儿 App 打开「工具 → 连接 AI 工具」，点击「复制安装指令」，直接粘贴到正在使用的 Claude Code、Codex 或其他 AI 工具的**对话框**并发送。无需先选 harness、打开终端或手动创建令牌。
+在大料 App 打开「工具 → 连接 AI 工具」，点击「复制安装指令」，直接粘贴到正在使用的 Claude Code、Codex 或其他 AI 工具的**对话框**并发送。无需先选 harness、打开终端或手动创建令牌。
 
 App 会为当前会话所在的服务签发专用 API Token，将该服务地址、Token 和 [AI 安装说明](INSTALL.md) 一起复制。Web App 的服务地址可能是 `https://cc.agoodbit.com`，iOS App 可能使用 `https://api.agoodbit.com`；安装 App 复制的指令时沿用其中的地址。AI 根据当前工具识别安装方式、准备依赖、完成连接并同步全部 Agent 和默认平台助手。本地 App 签发的是本地服务的 Token，不能用于连接线上服务；安装线上连接需从线上 App 获取 Token。复制内容含访问凭据，也会进入目标 AI 工具的会话记录；仅粘贴到信任的工具，不公开分享。可在 App「API 令牌」撤销对应的「AI 工具安装」令牌。
 
@@ -63,7 +65,7 @@ node src/cli.js sync --harness codex
 
 业务 CLI、`sync` 和当前插件的 MCP 工具在未显式指定连接文件时读取当前选择。所选环境没有凭证时返回 `token_not_configured`，需要选择账号时返回 `connection_ambiguous`；不会改用另一个环境的凭证。业务 CLI 和 `sync` 的 `--profile` 仅覆盖本次命令。切换后 MCP 数据操作立即使用新选择；具备相应凭证后才能访问数据。本地 Agent 的名称、说明和提示词是上次同步的快照；先切换当前连接，再运行 `sync` 并开启新会话加载。
 
-更新源码时在安装目录运行 `git pull --ff-only`、`npm ci`，再同步当前工具。`--dry-run` 只查看范围；`--generate-only` 仅导出。高级用法 `configure --url <origin> [--profile <连接文件>]` 仍可指定平台和凭证文件，只保存凭证，不切换环境；更换账号时使用独立的连接文件。
+更新源码时在安装目录运行 `git pull --ff-only`、`npm ci`，再运行 `sync --harness <当前工具>` 并开启新会话，加载更新后的大料插件和 Agent 说明。`--dry-run` 只查看范围；`--generate-only` 仅导出。高级用法 `configure --url <origin> [--profile <连接文件>]` 仍可指定平台和凭证文件，只保存凭证，不切换环境；更换账号时使用独立的连接文件。
 
 如果配置时提示 404，先确认平台已支持 `GET /api/integrations/me` 和 Agent 接口。插件发布不代表目标平台后端已经更新。
 
@@ -141,7 +143,7 @@ node src/cli.js work version get --profile /path/to/profile.json --input '{"proj
 
 `asr transcribe` 的 `audio_path` 是本机原始 PCM 文件路径，须为 16kHz、单声道、16 位小端格式（`pcm_s16le`），最长 5 分钟；调用方需提供原始 PCM，CLI 不解码 WAV/MP3 或转换音频。`--input-file` 仍读取 JSON 参数文件。CLI 通过同一后端获取 30 秒内有效、单次使用的连接凭据，按实际音频速度发送 PCM，并用 `finish` 等待尾句最终结果。成功返回 `{"text":"识别全文","segments":[{"segment_id":"...","revision":2,"text":"识别分段"}]}`；不自动保存为素材。连接与就绪合计最多等待 15 秒，尾句等待也最多 15 秒；超时返回 `asr_timeout`，异常断开返回 `asr_disconnected`，云服务拒绝或故障返回 `asr_failed`，失败时不输出部分成功结果。MCP 调用为文件转写预留最多 375 秒。
 
-兼容性变化：原有安装、配置、身份查询和同步命令仍可使用，但 CLI 错误输出由纯文本改为上述 JSON；MCP 调用 CLI 失败时也返回同样的错误对象并设置 `isError`，MCP 自身的参数校验错误仍由 SDK 返回。依赖错误文本的脚本需改读 `error.code` / `error.message`。
+MCP 调用 CLI 失败时返回上述 JSON 错误对象并设置 `isError`，MCP 自身的参数校验错误由 SDK 返回。脚本通过 `error.code` / `error.message` 读取 CLI 错误。
 
 ## 同步规则
 
@@ -166,20 +168,18 @@ Agent 列表接口当前返回当前用户的完整数组，无分页。列表�
 - HTTP API 请求携带用户自己的长期 Token；ASR WebSocket 使用后端签发的一次性短期连接凭据。后端确定用户，不信任调用方指定的归属。跨用户资源统一返回 404。
 - 当前插件的 MCP 工具每次调用都由 CLI 读取当前连接及其凭证文件；显式传入 `--profile` 的 CLI 命令只读取指定文件。CLI 校验连接状态中的平台和用户绑定，后端校验 Token 当前所属用户。撤销 Token 后，下次请求立即失败。
 - 连接只接受 HTTPS origin；本地调试允许 loopback HTTP。禁止 URL 内置凭证、查询参数及重定向，避免把 Token 发往其他地址。
-- 自动安装和不指定路径的 `configure` 将凭证保存为 `~/.cc/profiles/<平台及用户标识>.json`，权限为 `600`。当前选择另存于 `~/.cc/active.json`，不含 Token。旧版 `~/.config/cuijiao-bridge/` 下的选择和凭证仍可读取；`init` 保留旧选择引用，不删除旧 Token 文件。App 复制的安装指令和目标 AI 会话中包含 Token；插件运行时从对应凭证文件读取，不把 Token 写入插件清单、Agent 提示词或日志。
+- 自动安装和不指定路径的 `configure` 将凭证保存为 `~/.cc/profiles/<平台及用户标识>.json`，权限为 `600`。当前选择另存于 `~/.cc/active.json`，不含 Token。App 复制的安装指令和目标 AI 会话中包含 Token；插件运行时从对应凭证文件读取，不把 Token 写入插件清单、Agent 提示词或日志。
 - 同一用户的多个 Token 可访问该用户全部业务资源，当前没有 Token 级别的细分 scope。操作系统账号及其启动的 harness 必须可信；本机文件权限不是对同一系统账号内恶意进程的隔离。
 
 更换当前账号的 Token 时运行 `configure`；后续 CLI / MCP 调用会读取更新后的 Token。自动 install 按账号及平台保存独立配置；手动 configure 切换账号或平台时须使用不同的 `--profile` 文件，不能静默覆盖已绑定其他账号的配置。切换当前连接使用 `connections use`，不需改写凭证文件。
 
 ## 本地文件与卸载
 
-连接状态和新的凭证文件放在 `~/.cc/` 下。生成文件仍放在 `~/.config/cuijiao-bridge/marketplaces/cuijiao-active/` 下，以保留已注册的插件源路径；插件名和原生 Agent 前缀固定为 `cuijiao-active`，同一插件可随当前连接切换。Codex 默认使用 `~/.codex/agents/`，设置了 `CODEX_HOME` 时使用该目录下的 `agents/`。各平台和账号的 Token 保存在独立凭证文件中。
-
-首次通过 `install` 安装新版，或先用 `connections use` 选定具备凭证的连接再运行 `sync` 时，安装器会在新版验证成功后移除旧版按账号命名的托管插件和 marketplace；仅清理首行标有对应托管标记的旧 Codex Agent，不删除凭证或其他同名前缀文件。仅切换环境不会迁移旧安装。
+连接状态和凭证文件放在 `~/.cc/` 下。生成文件放在 `~/.config/daliao-bridge/marketplaces/daliao-active/` 下；插件名和原生 Agent 前缀固定为 `daliao-active`，同一插件可随当前连接切换。Codex 默认使用 `~/.codex/agents/`，设置了 `CODEX_HOME` 时使用该目录下的 `agents/`。各平台和账号的 Token 保存在独立凭证文件中。
 
 MCP 配置引用此项目中的运行脚本和 Node 绝对路径，因此保留源码目录和 `node_modules`。移动源码或更新 Node 路径后重新运行 `sync`。不要分享生成的私人 Agent 目录或凭证文件。
 
-卸载时，用同步输出的 `namespace`（当前为 `cuijiao-active`）和 `marketplace` 替换下列占位符：
+卸载时，用同步输出的 `namespace`（当前为 `daliao-active`）和 `marketplace` 替换下列占位符：
 
 ```sh
 claude plugin uninstall '<namespace>@<marketplace>' --scope user
@@ -188,7 +188,7 @@ claude plugin marketplace remove '<marketplace>'
 codex plugin marketplace remove '<marketplace>'
 ```
 
-再删除 Codex `agents/` 中属于该 `namespace` 且首行标有 `Managed by cuijiao-bridge` 的文件，以及对应的生成目录。确认不再使用后分别在所属平台撤销 Token，再删除对应凭证文件及 `active.json`。插件卸载不会删除平台资源，撤销 Token 也不会清除已保存在本地的提示词副本。
+再删除 Codex `agents/` 中属于该 `namespace` 且首行标有 `Managed by daliao-bridge` 的文件，以及对应的生成目录。确认不再使用后分别在所属平台撤销 Token，再删除对应凭证文件及 `active.json`。插件卸载不会删除平台资源，撤销 Token 也不会清除已保存在本地的提示词副本。
 
 ## 验证
 
@@ -204,7 +204,6 @@ BRIDGE_TEST_ORIGIN=http://127.0.0.1:18083 npm run test:asr:e2e
 
 # 可选：实际 CLI 安装/更新，全部使用临时配置目录；需 Python 3.11+ 解析 TOML
 node --test tests/harness-smoke.js
-node --test tests/migration-smoke.js
 
 # 可选：本地后端全链路，会创建临时账号，结束时注销并删除其资源
 BRIDGE_TEST_ORIGIN=http://127.0.0.1:8081 node --test tests/platform-smoke.js
@@ -226,11 +225,7 @@ BRIDGE_TEST_ORIGIN=http://127.0.0.1:8081 node --test tests/platform-smoke.js
 
 `test:asr:e2e` 对应 [独立 CLI ASR 用例](tests/asr-platform-smoke.js)，使用隔离后端的 ASR mock 模式，覆盖 API Token 配置、健康查询、单次连接凭据、PCM 发送、尾句结束与最终文本、stdio MCP → CLI 的同一链路，以及 Token 撤销后的拒绝。它不验证真实云服务的识别准确率；普通 `npm test` 覆盖音频输入限制、消息时序、分段修订、错误、超时与连接清理。
 
-2026-10-14 新增 `init` 和当前环境的无路径 `configure`，新的连接状态与凭证默认存入 `~/.cc/`。已通过 `npm test` 的 36 项测试、`npm run check` 和 4 项隔离 harness 安装更新 / 迁移回归，覆盖初始化权限和幂等性、免路径配置与 Token 更新、账号绑定、新旧配置兼容及 MCP 切换。本轮未修改 UI，未运行真实后端或云端业务闭环，也未更新日常插件安装。
-
-2026-10-14 环境选择与 Token 配置分离已通过 `npm test` 的 30 项测试、`npm run check`、Claude Code / Codex 隔离安装更新，以及 3 项隔离迁移回归。覆盖无 Token 切换与持久选择、后续配置凭证、不跨环境回退、多账号选择、旧状态绑定和同一 MCP 进程的切换恢复。本轮未修改 UI，未运行真实后端或云端业务闭环，也未更新日常插件安装。
-
-2026-10-13 默认线上连接和本机切换已通过插件侧 `npm test`、`npm run check`、隔离 harness 安装及旧插件迁移测试；App 连接指令的专项测试 8/8、类型检查、Lint 和 Prettier 均通过。使用本地真实后端和指定连接文件的 `whoami` 查询成功（用户 ID 22）；在临时 HOME 中持久选择本地连接后，不带 `--profile` 的 `whoami` 也成功。尚未完成云端带 Token 的业务闭环，也未在真实 UI 模拟器中验证复制流程；日常用户目录中的旧插件未被本次测试更新。
+2026-10-23 大料命名统一验证：Node.js 22 下 `npm run check` 与 `npm test`（34/34）通过，覆盖 CLI、安装器、原生 Agent、账号命名空间和 stdio MCP（`daliao-bridge`）。真实后端闭环与 Claude Code / Codex 实际安装待部署后验证。
 
 2026-10-12 创作与作品的 9 个 CLI / MCP 命令已通过 `npm test` 的 21 项测试、`npm run check`，并在隔离 MySQL 与 Go API 通过独立 `test:cli:e2e` 的 6 项测试。覆盖冻结完整上下文、保存候选稿与幂等冲突、版本编辑采用恢复、跨用户拒绝和项目删除后的不可访问；测试用固定正文代替模型输出，不调用模型。使用临时账号并在结束时清理，未更新日常插件安装；本轮未验证真实 harness 对话中的模型选择与生成质量。
 

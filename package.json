@@ -1,14 +1,14 @@
 {
-  "name": "cuijiao-bridge",
+  "name": "daliao-bridge",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "萃角儿平台与 Claude Code、Codex 的本地桥接插件",
+  "description": "大料平台与 Claude Code、Codex 的本地桥接插件",
   "engines": {
     "node": ">=22"
   },
   "bin": {
-    "cuijiao-bridge": "src/cli.js"
+    "daliao-bridge": "src/cli.js"
   },
   "scripts": {
     "test": "node --test tests/*.test.js",

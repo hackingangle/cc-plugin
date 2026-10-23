@@ -95,7 +95,7 @@ test("sync exports every agent, updates/removes managed agents, preserves unrela
   assert.equal((await readdir(agentDir)).length, 3);
   const mcp = await readFile(join(result.pluginPath, ".mcp.json"), "utf8");
   assert.equal(mcp.includes(f.token), false);
-  assert.equal(JSON.parse(mcp).mcpServers.platform.env.CUIJIAO_CONNECTION_MODE, "active");
+  assert.equal(JSON.parse(mcp).mcpServers.platform.env.DALIAO_CONNECTION_MODE, "active");
   const prompt = await readFile(
     join(agentDir, `${result.namespace}-agent-2.toml`),
     "utf8",

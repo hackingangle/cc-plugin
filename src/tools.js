@@ -5,7 +5,7 @@ import { runCli } from "./run-cli.js";
 import { cloudOrigin, describeConnection } from "./profile.js";
 
 export function createServer(connection) {
-  const server = new McpServer({ name: "cuijiao-bridge", version: "0.1.0" });
+  const server = new McpServer({ name: "daliao-bridge", version: "0.1.0" });
   const connectionName = connection.active
     ? `当前连接（默认 ${cloudOrigin}）`
     : describeConnection(connection.baseUrl).name;

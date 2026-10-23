@@ -4,13 +4,13 @@ import { BridgeError } from "./client.js";
 import { createServer } from "./tools.js";
 
 try {
-  if (process.env.CUIJIAO_CONNECTION_MODE === "active") {
+  if (process.env.DALIAO_CONNECTION_MODE === "active") {
     await serveStdio(() => createServer({ active: true }));
   } else {
-    const profilePath = process.env.CUIJIAO_PROFILE;
+    const profilePath = process.env.DALIAO_PROFILE;
     const profile = await readProfile(profilePath, {
-      userId: process.env.CUIJIAO_USER_ID,
-      baseUrl: process.env.CUIJIAO_ORIGIN,
+      userId: process.env.DALIAO_USER_ID,
+      baseUrl: process.env.DALIAO_ORIGIN,
     });
     await serveStdio(() =>
       createServer({

@@ -11,14 +11,14 @@ const cloudOrigin = "https://cc.agoodbit.com";
 
 function isolatedEnv(directory) {
   const env = { ...process.env, HOME: directory };
-  delete env.CUIJIAO_PROFILE;
-  delete env.CUIJIAO_ORIGIN;
-  delete env.CUIJIAO_USER_ID;
+  delete env.DALIAO_PROFILE;
+  delete env.DALIAO_ORIGIN;
+  delete env.DALIAO_USER_ID;
   return env;
 }
 
 async function freshHome(t) {
-  const directory = await mkdtemp(join(tmpdir(), "cuijiao-init-"));
+  const directory = await mkdtemp(join(tmpdir(), "daliao-init-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   return { directory, env: isolatedEnv(directory) };
 }
@@ -139,39 +139,9 @@ test("configure with an explicit URL saves another target without switching the 
   assert.equal((await successful(["whoami"], env)).id, 1);
 });
 
-test("init carries the legacy selection forward without rewriting its credentials and new state takes priority", async (t) => {
+test("invalid active state fails initialization and business commands", async (t) => {
   const f = await fixture(t);
   const env = isolatedEnv(f.directory);
-  const legacyPath = join(f.directory, ".config", "cuijiao-bridge", "profiles", "local.json");
-  const profileContents = await readFile(f.profilePath, "utf8");
-  await saveProfile(legacyPath, JSON.parse(profileContents));
-  const legacyStatePath = join(f.directory, ".config", "cuijiao-bridge", "active.json");
-  const legacyState = JSON.stringify({ profilePath: legacyPath, origin: f.baseUrl, userId: 1 });
-  await writeFile(legacyStatePath, legacyState, { mode: 0o600 });
-  const savedCredential = await readFile(legacyPath, "utf8");
-  const initialized = await successful(["init"], env);
-  assert.equal(initialized.connection.profilePath, legacyPath);
-  assert.equal(initialized.connection.environment, "local");
-  assert.equal(initialized.connection.tokenConfigured, true);
-  assert.equal(await readFile(legacyPath, "utf8"), savedCredential);
-  assert.equal(await readFile(legacyStatePath, "utf8"), legacyState);
-  assert.equal((await successful(["whoami"], env)).id, 1);
-
-  await writeFile(legacyStatePath, JSON.stringify({ environment: "cloud" }));
-  assert.equal((await successful(["connections", "current"], env)).profilePath, legacyPath);
-  const configured = await successful(["configure", "--token-stdin"], env, f.token);
-  assert.equal(dirname(configured.profilePath), join(f.directory, ".cc", "profiles"));
-  assert.equal((await successful(["connections", "current"], env)).profilePath, configured.profilePath);
-  assert.equal(await readFile(legacyPath, "utf8"), savedCredential);
-  assert.equal((await successful(["whoami"], env)).id, 1);
-});
-
-test("invalid new state fails init instead of falling back to a valid legacy selection", async (t) => {
-  const f = await fixture(t);
-  const env = isolatedEnv(f.directory);
-  const legacyStatePath = join(f.directory, ".config", "cuijiao-bridge", "active.json");
-  await mkdir(dirname(legacyStatePath), { recursive: true });
-  await writeFile(legacyStatePath, JSON.stringify({ profilePath: f.profilePath, origin: f.baseUrl, userId: 1 }), { mode: 0o600 });
   const activePath = join(f.directory, ".cc", "active.json");
   await mkdir(dirname(activePath), { recursive: true, mode: 0o700 });
   await writeFile(activePath, "{invalid", { mode: 0o600 });
@@ -186,13 +156,11 @@ test("invalid new state fails init instead of falling back to a valid legacy sel
   assert.equal(f.state.calls.length, callsBefore);
 });
 
-test("new managed credentials shadow legacy copies while duplicate new files remain ambiguous", async (t) => {
+test("duplicate managed credentials require explicit profile selection", async (t) => {
   const f = await fixture(t);
   const env = isolatedEnv(f.directory);
   const profile = JSON.parse(await readFile(f.profilePath, "utf8"));
-  const legacyPath = join(f.directory, ".config", "cuijiao-bridge", "profiles", "old.json");
-  const currentPath = join(f.directory, ".cc", "profiles", "new.json");
-  await saveProfile(legacyPath, profile);
+  const currentPath = join(f.directory, ".cc", "profiles", "account.json");
   await saveProfile(currentPath, profile);
   const listed = await successful(["connections", "list"], env);
   assert.deepEqual(listed.connections.map((connection) => connection.profilePath), [currentPath]);

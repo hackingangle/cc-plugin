@@ -1,6 +1,6 @@
 # 给 AI 工具的安装说明
 
-用户从萃角儿 App 复制本页链接和连接 JSON 后，将整段内容交给当前 AI 工具执行。目标是在当前工具中完成安装与连接；不要把下面的步骤再转交给用户手工执行。尊重当前工具自身的权限和审批规则。
+用户从大料 App 复制本页链接和连接 JSON 后，将整段内容交给当前 AI 工具执行。目标是在当前工具中完成安装与连接；不要把下面的步骤再转交给用户手工执行。尊重当前工具自身的权限和审批规则。
 
 ## 1. 识别当前工具并准备源码
 
@@ -8,7 +8,7 @@
 
 需要 Git、Node.js 22+ 和目标工具。先检查已安装的依赖。缺少依赖时按当前系统的正式安装方式处理，遵循工具的授权边界；确实无法完成时报告具体阻碍。
 
-将 https://github.com/hackingangle/cc-plugin.git 克隆到用户目录下固定的插件安装目录（例如 `~/.local/share/cuijiao-bridge/source`），不要放在临时目录或业务项目内。已有源码时先确认 Git remote 是这个仓库、工作区没有未提交改动，再 `git pull --ff-only`。不覆盖用户改动。
+将 https://github.com/hackingangle/cc-plugin.git 克隆到用户目录下固定的插件安装目录（例如 `~/.local/share/daliao-bridge/source`），不要放在临时目录或业务项目内。已有源码时先确认 Git remote 是这个仓库、工作区没有未提交改动，再 `git pull --ff-only`。不覆盖用户改动。
 
 在源码目录执行 `npm ci`。MCP 会引用这里的绝对路径，安装后保留源码与依赖。
 
@@ -26,17 +26,15 @@ node src/cli.js install --url <platform_url> --harness <cc|codex|mcp> --token-st
 
 用执行工具的标准输入把令牌传给这个进程，然后关闭 stdin。不要使用包含令牌的命令行参数、`echo` 命令、环境变量或日志。若执行工具只支持文件输入，使用权限 600 的临时输入文件，执行后立即删除；不要把文件放进仓库。不要读取或展示已保存的凭证文件。App 令牌会存在用户粘贴的会话记录中，不要在回复中重复它。
 
-CLI 会先验证 Token 所属用户，按平台和用户 ID 分别保存连接文件到 `~/.cc/profiles/`，再同步全部 Agent 和默认平台助手。插件使用固定名称 `cuijiao-active`，可通过当前连接使用本地或线上服务；各服务的 Token 分开保存。只依据真实返回结果报告成功。保存文件权限为 600；输出的 `profilePath`、`namespace`、`agentCount`、`mcpConfigPath`、`skillsPath` 都不含 Token。
+CLI 会先验证 Token 所属用户，按平台和用户 ID 分别保存连接文件到 `~/.cc/profiles/`，再同步全部 Agent 和默认平台助手。大料插件的 MCP 名为 `daliao-active`，可通过当前连接使用本地或线上服务；各服务的 Token 分开保存。只依据真实返回结果报告成功。保存文件权限为 600；输出的 `profilePath`、`namespace`、`agentCount`、`mcpConfigPath`、`skillsPath` 都不含 Token。
 
-`install` 会把本次连接设为当前连接，将连接文件路径、地址和用户 ID 写入本机的 `~/.cc/active.json`，不复制 Token。生成的 marketplace 仍使用 `~/.config/cuijiao-bridge/marketplaces/`，保留已注册的插件源路径。
-
-新版插件验证成功后会移除旧版按账号命名的托管插件及 marketplace，并清理带对应托管标记的旧 Codex Agent；不会删除 Token 文件或用户自己的文件。迁移失败时按 CLI 报错修复并重新 `sync`，不要手动删除不确定归属的文件。
+`install` 会把本次连接设为当前连接，将连接文件路径、地址和用户 ID 写入本机的 `~/.cc/active.json`，不复制 Token。生成的 marketplace 使用 `~/.config/daliao-bridge/marketplaces/daliao-active/`。
 
 以后用 `connections use local|cloud` 切换环境，选择会保存在本机；没有 Token 也能切换。没有手动选择时默认线上；未配置凭证时线上地址为 `https://cc.agoodbit.com`，本地地址为 `http://localhost:8080`。已有线上凭证时优先使用 `cc.agoodbit.com`，没有它时可使用 `api.agoodbit.com`。
 
 用 `connections current` 确认当前环境、地址和 `tokenConfigured`，用 `connections list` 查看已配置凭证。`tokenConfigured: false` 时运行 `configure --token-stdin` 配置当前环境，不需要填写地址或文件路径；它只保存凭证，保留环境选择和已有账号绑定。`install` 则保存凭证、选中本次连接并完成同步。多个匹配的凭证文件会返回 `profileRequired: true`，此时用 `connections use local|cloud --profile <连接文件>` 选择账号。非默认地址或其他账号仍可用高级命令 `configure --url <origin> [--profile <连接文件>] --token-stdin` 配置；指定文件必须属于所选环境。
 
-用户只维护连接而不安装插件时，推荐执行 `init`、`configure`、`whoami`；切换本地则执行 `connections use local`，再 `configure`。人类直接运行 `configure` 时按提示隐藏输入 Token，AI 执行时使用上述标准输入方式。`init` 创建 `~/.cc/`、`~/.cc/profiles/` 和不含 Token 的 `active.json`，首次默认线上，重复执行保留当前选择，不创建空凭证文件。旧版 `~/.config/cuijiao-bridge/` 下的选择和凭证仍可读取；初始化保留旧选择引用，不删除旧 Token 文件。
+用户只维护连接而不安装插件时，推荐执行 `init`、`configure`、`whoami`；切换本地则执行 `connections use local`，再 `configure`。人类直接运行 `configure` 时按提示隐藏输入 Token，AI 执行时使用上述标准输入方式。`init` 创建 `~/.cc/`、`~/.cc/profiles/` 和不含 Token 的 `active.json`，首次默认线上，重复执行保留当前选择，不创建空凭证文件。
 
 业务 CLI 和当前插件的 MCP 工具读取当前选择，缺少 Token 时返回 `token_not_configured`，需要选择账号时返回 `connection_ambiguous`；不会借用另一个环境的凭证。CLI 显式传入 `--profile` 时只覆盖本次命令。切换后 MCP 数据操作立即使用新选择，具备相应凭证后才能访问数据；需运行 `sync --harness <当前工具>` 并开启新会话，才能更新本地 Agent 的名称、说明和提示词快照。
 

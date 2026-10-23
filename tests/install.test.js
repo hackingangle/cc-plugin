@@ -26,11 +26,17 @@ test("one install command binds credentials and exports every agent for an MCP h
   const result = JSON.parse(response.output);
   assert.equal(result.user.id, 1);
   assert.equal(result.agentCount, 1);
+  assert.equal(result.namespace, "daliao-active");
+  assert.equal(result.marketplace, "daliao-active-local");
+  assert.equal(
+    result.root,
+    join(f.directory, ".config", "daliao-bridge", "marketplaces", "daliao-active"),
+  );
   assert.deepEqual(result.installed, []);
   assert.equal(result.generatedOnly, true);
   assert.equal(JSON.parse(await readFile(path, "utf8")).token, f.token);
   const mcp = JSON.parse(await readFile(result.mcpConfigPath, "utf8"));
-  assert.equal(mcp.mcpServers.platform.env.CUIJIAO_CONNECTION_MODE, "active");
+  assert.equal(mcp.mcpServers.platform.env.DALIAO_CONNECTION_MODE, "active");
   assert.match(
     await readFile(join(result.skillsPath, "agent-1", "SKILL.md"), "utf8"),
     /system|保留|助手|提示/,
@@ -114,7 +120,7 @@ test("one plugin uses a persisted connection selection across two origins", asyn
   const codexHome = join(local.directory, "codex");
   const options = {
     codexHome,
-    marketplaceDirectory: join(local.directory, ".config", "cuijiao-bridge", "marketplaces"),
+    marketplaceDirectory: join(local.directory, ".config", "daliao-bridge", "marketplaces"),
     harness: "codex",
     install: async () => {},
   };
@@ -122,7 +128,7 @@ test("one plugin uses a persisted connection selection across two origins", asyn
   await syncAgents({ ...options, profilePath: second.profilePath });
   await syncAgents({ ...options, profilePath: first.profilePath });
   const native = await readFile(join(codexHome, "agents", `${second.namespace}-platform.toml`), "utf8");
-  assert.match(native, /CUIJIAO_CONNECTION_MODE = "active"/);
+  assert.match(native, /DALIAO_CONNECTION_MODE = "active"/);
   assert.equal(native.includes(local.token), false);
 });
 
@@ -135,7 +141,7 @@ test("without a saved choice, the CLI defaults to the configured cloud origin", 
   assert.equal(JSON.parse(missing.output).origin, cloudOrigin);
   assert.equal(JSON.parse(missing.output).tokenConfigured, false);
 
-  const directory = join(f.directory, ".config", "cuijiao-bridge", "profiles");
+  const directory = join(f.directory, ".cc", "profiles");
   await mkdir(directory, { recursive: true });
   const cloudPath = join(directory, "cloud.json");
   await writeFile(

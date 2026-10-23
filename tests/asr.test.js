@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { transcribeAudio } from "../src/asr.js";
 
 test("ASR sends paced PCM only after ready, flushes final revisions and closes without exposing credentials", async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), "cuijiao-asr-"));
+  const directory = await mkdtemp(join(tmpdir(), "daliao-asr-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const audioPath = join(directory, "audio.pcm");
   const audio = Buffer.alloc(12800, 7);
@@ -111,7 +111,7 @@ test("ASR sends paced PCM only after ready, flushes final revisions and closes w
 });
 
 test("ASR rejects unreadable, empty, odd-length and oversized files before creating a ticket", async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), "cuijiao-asr-invalid-"));
+  const directory = await mkdtemp(join(tmpdir(), "daliao-asr-invalid-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const client = {
     request: () => assert.fail("invalid files must not request a ticket"),
@@ -130,7 +130,7 @@ test("ASR rejects unreadable, empty, odd-length and oversized files before creat
 });
 
 test("ASR fails closed on malformed tickets, cloud failure, disconnect and handshake timeout", async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), "cuijiao-asr-failure-"));
+  const directory = await mkdtemp(join(tmpdir(), "daliao-asr-failure-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const audioPath = join(directory, "audio.pcm");
   await writeFile(audioPath, Buffer.alloc(2));

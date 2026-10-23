@@ -12,27 +12,25 @@ import { homedir } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
 import { BridgeError, normalizeOrigin, PlatformClient } from "./client.js";
 
-export const configDirectory = join(homedir(), ".cc");
-export const profilesDirectory = join(configDirectory, "profiles");
-export const defaultProfile = join(configDirectory, "profile.json");
-export const legacyConfigDirectory = join(
+const stateDirectory = join(homedir(), ".cc");
+export const profilesDirectory = join(stateDirectory, "profiles");
+export const defaultProfile = join(stateDirectory, "profile.json");
+export const configDirectory = join(
   homedir(),
   ".config",
-  "cuijiao-bridge",
+  "daliao-bridge",
 );
-const legacyDefaultProfile = join(legacyConfigDirectory, "profile.json");
 export const cloudOrigin = "https://cc.agoodbit.com";
 export const localOrigin = "http://localhost:8080";
 const mobileCloudOrigin = "https://api.agoodbit.com";
-export const activeConnectionPath = join(configDirectory, "active.json");
-const legacyActiveConnectionPath = join(legacyConfigDirectory, "active.json");
+export const activeConnectionPath = join(stateDirectory, "active.json");
 
 export function accountNamespace(profile) {
   const originHash = createHash("sha256")
     .update(profile.baseUrl)
     .digest("hex")
     .slice(0, 12);
-  return `cuijiao-${originHash}-u${profile.userId}`;
+  return `daliao-${originHash}-u${profile.userId}`;
 }
 
 export function automaticProfilePath(baseUrl, userId) {
@@ -74,22 +72,17 @@ function matchingConnections(connections, environment) {
 
 export async function listConnections(extraProfilePath) {
   const paths = new Set([defaultProfile]);
-  const legacyProfilesDirectory = join(legacyConfigDirectory, "profiles");
-  for (const directory of [profilesDirectory, legacyProfilesDirectory]) {
-    try {
-      for (const name of (await readdir(directory)).sort()) {
-        if (name.endsWith(".json")) paths.add(join(directory, name));
-      }
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
+  try {
+    for (const name of (await readdir(profilesDirectory)).sort()) {
+      if (name.endsWith(".json")) paths.add(join(profilesDirectory, name));
     }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
   }
-  paths.add(legacyDefaultProfile);
   if (extraProfilePath) paths.add(extraProfilePath);
 
   const connections = [];
   const issues = [];
-  const newAccounts = new Set();
   for (const profilePath of paths) {
     let profile;
     try {
@@ -99,17 +92,6 @@ export async function listConnections(extraProfilePath) {
       issues.push({ profilePath, code: error.code || "invalid_profile" });
       continue;
     }
-    const account = `${profile.baseUrl}:${profile.userId}`;
-    const legacy =
-      profilePath === legacyDefaultProfile ||
-      dirname(profilePath) === legacyProfilesDirectory;
-    if (legacy && newAccounts.has(account) && profilePath !== extraProfilePath)
-      continue;
-    if (
-      profilePath === defaultProfile ||
-      dirname(profilePath) === profilesDirectory
-    )
-      newAccounts.add(account);
     connections.push({
       ...describeConnection(profile.baseUrl),
       origin: profile.baseUrl,
@@ -139,9 +121,7 @@ async function readConnectionState(path) {
 }
 
 async function readActiveConnection() {
-  let state = await readConnectionState(activeConnectionPath);
-  if (state === undefined)
-    state = await readConnectionState(legacyActiveConnectionPath);
+  const state = await readConnectionState(activeConnectionPath);
   if (state === undefined) return null;
   const invalidState = () =>
     new BridgeError("当前连接状态文件无效，请重新运行 connections use。");
@@ -169,9 +149,8 @@ async function readActiveConnection() {
   } catch {
     throw invalidState();
   }
-  if (state.environment !== undefined && state.environment !== environment)
+  if (state.environment !== environment)
     throw invalidState();
-  // Older state files stored only the profile binding, without an environment.
   return {
     environment,
     origin: state.origin,
@@ -285,7 +264,7 @@ export async function useConnection(environment, extraProfilePath) {
 
 export async function initializeProfiles() {
   const state = await readActiveConnection();
-  await mkdir(configDirectory, { recursive: true, mode: 0o700 });
+  await mkdir(stateDirectory, { recursive: true, mode: 0o700 });
   await mkdir(profilesDirectory, { recursive: true, mode: 0o700 });
   let created = false;
   try {
@@ -299,7 +278,7 @@ export async function initializeProfiles() {
     if (error.code !== "EEXIST") throw error;
   }
   return {
-    configDirectory,
+    configDirectory: stateDirectory,
     profilesDirectory,
     activeConnectionPath,
     created,

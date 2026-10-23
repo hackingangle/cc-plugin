@@ -10,14 +10,14 @@ const localOrigin = "http://localhost:8080";
 
 function isolatedEnv(directory) {
   const env = { ...process.env, HOME: directory };
-  delete env.CUIJIAO_PROFILE;
-  delete env.CUIJIAO_ORIGIN;
-  delete env.CUIJIAO_USER_ID;
+  delete env.DALIAO_PROFILE;
+  delete env.DALIAO_ORIGIN;
+  delete env.DALIAO_USER_ID;
   return env;
 }
 
 async function freshHome(t) {
-  const directory = await mkdtemp(join(tmpdir(), "cuijiao-selection-"));
+  const directory = await mkdtemp(join(tmpdir(), "daliao-selection-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   return { directory, env: isolatedEnv(directory) };
 }
@@ -36,7 +36,7 @@ async function rejectsWith(args, env, code) {
 }
 
 async function saveProfile(directory, name, profile) {
-  const profiles = join(directory, ".config", "cuijiao-bridge", "profiles");
+  const profiles = join(directory, ".cc", "profiles");
   await mkdir(profiles, { recursive: true });
   const path = join(profiles, name);
   await writeFile(path, JSON.stringify(profile), { mode: 0o600 });
@@ -150,22 +150,4 @@ test("explicit profile selection validates the target before replacing the saved
   );
   assert.equal(missing.code, 1);
   assert.equal((await successful(["connections", "current"], env)).environment, "cloud");
-});
-
-test("legacy active state retains its profile and account binding", async (t) => {
-  const f = await fixture(t);
-  const env = isolatedEnv(f.directory);
-  const directory = join(f.directory, ".config", "cuijiao-bridge");
-  await mkdir(directory, { recursive: true });
-  await writeFile(
-    join(directory, "active.json"),
-    JSON.stringify({ profilePath: f.profilePath, origin: f.baseUrl, userId: 1 }),
-    { mode: 0o600 },
-  );
-  const current = await successful(["connections", "current"], env);
-  assert.equal(current.environment, "local");
-  assert.equal(current.origin, f.baseUrl);
-  assert.equal(current.profilePath, f.profilePath);
-  assert.equal(current.tokenConfigured, true);
-  assert.equal((await successful(["whoami"], env)).id, 1);
 });
