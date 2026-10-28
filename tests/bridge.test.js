@@ -41,22 +41,13 @@ test("credentials cannot be sent to URL credentials, insecure origins, paths or 
   }
   const client = new PlatformClient(await readProfile(f.profilePath));
   await assert.rejects(client.request("GET", "//other.example/api"), /无效/);
-  for (const headers of [
-    { Authorization: "Bearer overridden" },
-    { "Idempotency-Key": "key\nInjected: value" },
-    { "Idempotency-Key": 1 },
-  ])
-    await assert.rejects(
-      client.request("POST", "/api/projects/1/creation-tasks", {}, headers),
-      (error) => error.code === "invalid_arguments",
-    );
   await assert.rejects(
     client.request("GET", "/api/projects/301"),
     /失败或超时/,
   );
   await assert.rejects(
-    client.request("POST", "/api/projects/301", {}, { "Idempotency-Key": "retry-key" }),
-    (error) => error.code === "request_failed" && error.message.includes("原幂等键及原输入"),
+    client.request("POST", "/api/projects/301", {}),
+    (error) => error.code === "request_failed" && error.message.includes("勿自动重试写入"),
   );
   assert.equal(
     f.state.calls.some((call) => call.path === "/outside"),
@@ -103,11 +94,15 @@ test("sync exports every agent, updates/removes managed agents, preserves unrela
   assert.match(prompt, /正文/);
   assert.equal(prompt.includes(f.token), false);
   assert.equal(prompt.includes("model ="), false);
-  assert.match(prompt, /create_creation_task/);
-  assert.match(prompt, /complete_creation_task/);
-  assert.match(prompt, /完整冻结上下文/);
-  assert.match(prompt, /不会自动采用/);
-  assert.match(prompt, /原键和原输入/);
+  assert.match(prompt, /create_material/);
+  assert.match(prompt, /update_material/);
+  assert.match(prompt, /get_material/);
+  assert.match(prompt, /覆盖当前正文/);
+  assert.doesNotMatch(prompt, /creation[_ -]|work[_ /-]|idempotency|创作任务|候选版本|冻结上下文/);
+  const platformSkill = await readFile(join(result.pluginPath, "skills/platform/SKILL.md"), "utf8");
+  assert.match(platformSkill, /materials create/);
+  assert.match(platformSkill, /materials update/);
+  assert.doesNotMatch(platformSkill, /creation[_ -]|work[_ /-]|idempotency|创作任务|候选版本|冻结上下文/);
   await writeFile(join(agentDir, "my-own-agent.toml"), "personal");
   f.state.agents = [{ ...f.state.agents[0], system_prompt: "更新后的提示词" }];
   const next = await syncAgents(options);
