@@ -4,7 +4,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cli, fixture } from "./helpers.js";
 
-test("CLI maps business commands to HTTP routes, bodies and idempotency headers", async (t) => {
+test("CLI maps business commands to HTTP routes and bodies", async (t) => {
   const f = await fixture(t);
   const cases = [
     ["whoami", {}, "GET", "/api/integrations/me"],
@@ -69,69 +69,10 @@ test("CLI maps business commands to HTTP routes, bodies and idempotency headers"
       { description: null },
     ],
     ["agents delete", { agent_id: 9 }, "DELETE", "/api/agents/9"],
-    [
-      "creation create",
-      {
-        project_id: 7,
-        agent_id: 9,
-        material_ids: [8, 10],
-        requirements: "保留引文。",
-        idempotency_key: "create-1",
-      },
-      "POST",
-      "/api/projects/7/creation-tasks",
-      { agent_id: 9, material_ids: [8, 10], requirements: "保留引文。" },
-      "create-1",
-    ],
-    ["creation list", { project_id: 7 }, "GET", "/api/projects/7/creation-tasks"],
-    ["creation get", { task_id: 11 }, "GET", "/api/creation-tasks/11"],
-    [
-      "creation complete",
-      { task_id: 11, content: "候选稿。", idempotency_key: "complete-1" },
-      "POST",
-      "/api/creation-tasks/11/complete",
-      { content: "候选稿。" },
-      "complete-1",
-    ],
-    ["work get", { project_id: 7 }, "GET", "/api/projects/7/work"],
-    [
-      "work version get",
-      { project_id: 7, version_id: 12 },
-      "GET",
-      "/api/projects/7/work/versions/12",
-    ],
-    [
-      "work edit",
-      {
-        project_id: 7,
-        parent_version_id: 12,
-        expected_version: 1,
-        content: "修订候选稿。",
-        idempotency_key: "edit-1",
-      },
-      "POST",
-      "/api/projects/7/work/versions",
-      { parent_version_id: 12, expected_version: 1, content: "修订候选稿。" },
-      "edit-1",
-    ],
-    ...["adopt", "restore"].map((action) => [
-      `work ${action}`,
-      {
-        project_id: 7,
-        version_id: 12,
-        expected_version: 1,
-        idempotency_key: `${action}-1`,
-      },
-      "POST",
-      `/api/projects/7/work/${action}`,
-      { version_id: 12, expected_version: 1 },
-      `${action}-1`,
-    ]),
     ["asr health", {}, "GET", "/api/asr/health"],
   ];
-  for (const [command, input, method, path, body, key] of cases) {
+  for (const [command, input, method, path, body] of cases) {
     f.state.calls.length = 0;
-    f.state.idempotencyKeys.length = 0;
     const result = await cli([
       ...command.split(" "),
       "--profile",
@@ -149,8 +90,7 @@ test("CLI maps business commands to HTTP routes, bodies and idempotency headers"
     });
     assert.equal(f.state.calls.length, command === "whoami" ? 1 : 2);
     assert.deepEqual(f.state.calls.at(-1), { method, path, body }, command);
-    assert.equal(f.state.idempotencyKeys[0], undefined);
-    assert.equal(f.state.idempotencyKeys.at(-1), key, command);
+    assert.ok(f.state.idempotencyKeys.every((key) => key === undefined));
     if (method === "DELETE") assert.deepEqual(data, { deleted: true });
     assert.equal(result.output.includes(f.token), false);
   }
@@ -207,6 +147,7 @@ test("CLI rejects malformed inputs and unsafe options before HTTP; returns sanit
     ["projects", "unknown"],
     ["projects", "unknown", "--help"],
     ["asr", "transcribe", "--input", '{"audio_path":1}'],
+    ["agents", "create", "--input", '{"name":"作者","system_prompt":"提示词","llm_config_id":4}'],
   ];
   for (const args of invalid) {
     const result = await cli([...args, "--profile", f.profilePath]);
@@ -248,7 +189,7 @@ test("CLI help discovers commands and schemas without a connection", async () =>
   const result = await cli(["--help", "--json"]);
   assert.equal(result.code, 0, result.error);
   const commands = JSON.parse(result.output).commands;
-  assert.equal(commands.length, 27);
+  assert.equal(commands.length, 18);
   const materials = commands.find(
     (command) => command.command === "materials create",
   );
@@ -259,61 +200,24 @@ test("CLI help discovers commands and schemas without a connection", async () =>
     "content",
   ]);
   assert.equal(materials.inputSchema.additionalProperties, false);
-  assert.deepEqual(
-    commands.find((command) => command.command === "creation complete")
-      .inputSchema.required,
-    ["task_id", "content", "idempotency_key"],
-  );
-  const work = await cli(["work", "--help", "--json"]);
-  assert.equal(work.code, 0, work.error);
-  assert.deepEqual(
-    JSON.parse(work.output).commands.map((entry) => entry.command),
-    ["work get", "work version get", "work edit", "work adopt", "work restore"],
-  );
+  assert.ok(commands.every((entry) => !/^(creation|work)\b/.test(entry.command)));
 });
 
-test("creation and work refuse invalid keys, content, snapshots and stale version input before HTTP", async (t) => {
+test("removed commands are unknown and make no HTTP requests, including help", async (t) => {
   const f = await fixture(t);
-  const creation = {
-    project_id: 7,
-    agent_id: 9,
-    material_ids: [8],
-    requirements: "创作要求。",
-    idempotency_key: "create-1",
-  };
-  const complete = { task_id: 11, content: "候选稿。", idempotency_key: "complete-1" };
-  const work = {
-    project_id: 7,
-    version_id: 12,
-    expected_version: 1,
-    idempotency_key: "adopt-1",
-  };
-  const invalid = [
-    ...["", "space key", "line\nkey", "键", "x".repeat(129)].map((key) => [
-      "creation complete", { ...complete, idempotency_key: key },
-    ]),
-    ["creation complete", { task_id: 11, content: "正文" }],
-    ["creation complete", { ...complete, content: " \n\t" }],
-    ["creation complete", { ...complete, content: "字".repeat(Math.ceil((4 << 20) / 3)) }],
-    ["creation create", { ...creation, material_ids: [] }],
-    ["creation create", { ...creation, material_ids: [8, 8] }],
-    ["creation create", { ...creation, material_ids: Array.from({ length: 21 }, (_, i) => i + 1) }],
-    ["creation create", { ...creation, material_ids: ["8"] }],
-    ["creation create", { ...creation, requirements: "字".repeat(Math.ceil((16 << 10) / 3)) }],
-    ["creation create", { ...creation, model: "provider-model" }],
-    ["agents create", { name: "作者", system_prompt: "提示词", llm_config_id: 4 }],
-    ["work adopt", { ...work, expected_version: 0 }],
-    ["work restore", { ...work, expected_version: "1" }],
-    ["work edit", { ...work, parent_version_id: 12, content: "正文" }],
-  ];
-  for (const [command, input] of invalid) {
-    const result = await cli(
-      [...command.split(" "), "--profile", f.profilePath, "--input-stdin"],
-      JSON.stringify(input),
-    );
-    assert.equal(result.code, 1, command);
-    assert.equal(result.output, "");
-    assert.equal(JSON.parse(result.error).error.code, "invalid_arguments");
+  for (const command of [
+    "creation create", "creation list", "creation get", "creation complete",
+    "work get", "work version get", "work edit", "work adopt", "work restore",
+  ]) {
+    for (const options of [["--input", "{}"], ["--help", "--json"]]) {
+      const result = await cli([
+        ...command.split(" "), "--profile", f.profilePath, ...options,
+      ]);
+      assert.equal(result.code, 1, command);
+      assert.equal(result.output, "", command);
+      assert.equal(JSON.parse(result.error).error.code, "invalid_arguments", command);
+      assert.match(JSON.parse(result.error).error.message, /未知命令/, command);
+    }
   }
   assert.equal(f.state.calls.length, 0);
 });

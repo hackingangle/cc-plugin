@@ -25,7 +25,7 @@ export function runCli(command, input, { profilePath, userId, baseUrl, active })
       {
         env,
         timeout: command === "asr transcribe" ? 375000 : 40000,
-        // Preserve complete material snapshots and candidate text.
+        // Preserve complete material text.
         maxBuffer: Infinity,
       },
       (error, stdout, stderr) => {

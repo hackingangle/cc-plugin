@@ -25,7 +25,7 @@ test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failur
   await client.connect(transport);
   assert.equal(client.getServerVersion().name, "daliao-bridge");
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 27);
+  assert.equal(tools.length, 18);
   assert.match(tools[0].description, new RegExp(f.baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.equal(
     tools.find((tool) => tool.name === "asr_health").annotations.readOnlyHint,
@@ -99,47 +99,27 @@ test("real stdio MCP exposes typed CRUD, refuses owner injection, reports failur
   assert.notEqual(large.isError, true, large.content[0].text);
   assert.equal(JSON.parse(large.content[0].text).content, content);
 
-  // Task snapshots and completed candidate text must survive MCP → CLI intact.
-  const task = {
-    id: 11,
-    project_id: 7,
-    state: "awaiting_result",
-    agent_name: "作者",
-    system_prompt: "保留事实。",
-    requirements: "口播稿。",
-    materials: [{ id: 7, content }],
-  };
-  f.state.responses.set("POST /api/projects/7/creation-tasks", task);
-  f.state.responses.set("GET /api/creation-tasks/11", task);
-  const createdTask = await call("create_creation_task", {
-    project_id: 7,
-    agent_id: 9,
-    material_ids: [7],
-    requirements: "口播稿。",
-    idempotency_key: "mcp-create-1",
-  });
-  assert.deepEqual(JSON.parse(createdTask.content[0].text), task);
-  assert.equal(f.state.idempotencyKeys.at(-1), "mcp-create-1");
-  const snapshot = await call("get_creation_task", { task_id: task.id });
-  assert.deepEqual(JSON.parse(snapshot.content[0].text), task);
-  const completed = {
-    task: { ...task, state: "succeeded", candidate_version_id: 12 },
-    version: { id: 12, project_id: 7, kind: "generated", content },
-  };
-  f.state.responses.set("POST /api/creation-tasks/11/complete", completed);
-  const saved = await call("complete_creation_task", {
-    task_id: task.id,
-    content,
-    idempotency_key: "mcp-complete-1",
+  // Save and revise complete result text through ordinary material tools.
+  const revised = content + "修订结尾。";
+  const saved = await call("update_material", {
+    material_id: 7,
+    changes: { content: revised },
   });
   assert.notEqual(saved.isError, true, saved.content[0].text);
-  assert.deepEqual(JSON.parse(saved.content[0].text), completed);
-  assert.deepEqual(f.state.calls.at(-1).body, { content });
-  assert.equal(f.state.idempotencyKeys.at(-1), "mcp-complete-1");
-  assert.equal(
-    f.state.calls.some((entry) => entry.path.endsWith("/work/adopt")),
-    false,
-  );
+  assert.equal(JSON.parse(saved.content[0].text).content, revised);
+  assert.deepEqual(f.state.calls.at(-1).body, { content: revised });
+  assert.equal(f.state.idempotencyKeys.at(-1), undefined);
+
+  const beforeRemoved = f.state.calls.length;
+  for (const name of [
+    "create_creation_task", "list_creation_tasks", "get_creation_task", "complete_creation_task",
+    "get_work", "get_work_version", "edit_work_version", "adopt_work_version", "restore_work_version",
+  ]) {
+    assert.equal(tools.some((tool) => tool.name === name), false, name);
+    await assert.rejects(call(name), (error) =>
+      error.code === -32602 && error.message.includes(`Tool ${name} not found`), name);
+  }
+  assert.equal(f.state.calls.length, beforeRemoved);
 
   // The CLI must reload credentials on every call, but keep the installed binding.
   const profile = JSON.parse(await readFile(f.profilePath, "utf8"));
