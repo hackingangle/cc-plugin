@@ -98,11 +98,13 @@ test("sync exports every agent, updates/removes managed agents, preserves unrela
   assert.match(prompt, /update_material/);
   assert.match(prompt, /get_material/);
   assert.match(prompt, /覆盖当前正文/);
-  assert.doesNotMatch(prompt, /creation[_ -]|work[_ /-]|idempotency|创作任务|候选版本|冻结上下文/);
+  // Match retired commands without rejecting checkout paths such as /runner/work/.
+  const retiredInstructions = /creation (?:create|list|get|complete)|(?:create|list|get|complete)_creation_task|work (?:get|version get|edit|adopt|restore)|(?:get|edit|adopt|restore)_work|idempotency|创作任务|候选版本|冻结上下文/;
+  assert.doesNotMatch(prompt, retiredInstructions);
   const platformSkill = await readFile(join(result.pluginPath, "skills/platform/SKILL.md"), "utf8");
   assert.match(platformSkill, /materials create/);
   assert.match(platformSkill, /materials update/);
-  assert.doesNotMatch(platformSkill, /creation[_ -]|work[_ /-]|idempotency|创作任务|候选版本|冻结上下文/);
+  assert.doesNotMatch(platformSkill, retiredInstructions);
   await writeFile(join(agentDir, "my-own-agent.toml"), "personal");
   f.state.agents = [{ ...f.state.agents[0], system_prompt: "更新后的提示词" }];
   const next = await syncAgents(options);
